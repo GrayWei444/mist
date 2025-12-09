@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Message } from '../../types';
 
 interface MessageBubbleProps {
@@ -13,15 +13,14 @@ export function MessageBubble({ message, onBurn }: MessageBubbleProps) {
   const ttlTimer = useRef<NodeJS.Timeout | null>(null);
   const isMine = message.senderId === 'me';
 
-  // If message is burned, don't render anything
-  if (message.isBurned) {
-    return null;
-  }
+  // Memoize onBurn to prevent useEffect issues
+  const handleBurn = useCallback(() => {
+    onBurn();
+  }, [onBurn]);
 
   // TTL countdown effect
   useEffect(() => {
     if (isRevealed && message.ttl && ttlRemaining === null) {
-      // Start TTL countdown when first revealed
       setTtlRemaining(message.ttl);
     }
   }, [isRevealed, message.ttl, ttlRemaining]);
@@ -35,10 +34,22 @@ export function MessageBubble({ message, onBurn }: MessageBubbleProps) {
         if (ttlTimer.current) clearTimeout(ttlTimer.current);
       };
     } else if (ttlRemaining === 0) {
-      // Auto-burn when TTL reaches 0
-      onBurn();
+      handleBurn();
     }
-  }, [ttlRemaining, onBurn]);
+  }, [ttlRemaining, handleBurn]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pressTimer.current) clearTimeout(pressTimer.current);
+      if (ttlTimer.current) clearTimeout(ttlTimer.current);
+    };
+  }, []);
+
+  // If message is burned, don't render anything (after all hooks)
+  if (message.isBurned) {
+    return null;
+  }
 
   const handlePressStart = () => {
     pressTimer.current = setTimeout(() => {
@@ -50,10 +61,14 @@ export function MessageBubble({ message, onBurn }: MessageBubbleProps) {
     if (pressTimer.current) {
       clearTimeout(pressTimer.current);
     }
-    // Only hide if TTL hasn't started (no countdown)
     if (ttlRemaining === null) {
       setIsRevealed(false);
     }
+  };
+
+  const handleBurnClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleBurn();
   };
 
   const formatTime = (timestamp: number) => {
@@ -130,8 +145,8 @@ export function MessageBubble({ message, onBurn }: MessageBubbleProps) {
           {/* Burn button - only for received messages */}
           {!isMine && (
             <button
-              onClick={onBurn}
-              className="hover:text-orange-400 transition-colors"
+              onClick={handleBurnClick}
+              className="hover:text-orange-400 transition-colors p-1"
               title="銷毀訊息"
             >
               🔥
