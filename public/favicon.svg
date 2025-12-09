@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="mistGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#A855F7"/>
+      <stop offset="100%" style="stop-color:#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="45" fill="#0D0B14"/>
+  <g fill="url(#mistGradient)" opacity="0.9">
+    <!-- Mist/cloud shape -->
+    <ellipse cx="35" cy="55" rx="18" ry="12"/>
+    <ellipse cx="55" cy="50" rx="22" ry="15"/>
+    <ellipse cx="70" cy="55" rx="15" ry="10"/>
+    <ellipse cx="45" cy="45" rx="15" ry="10"/>
+  </g>
+</svg>
