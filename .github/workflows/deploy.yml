@@ -27,6 +27,19 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM
+        run: |
+          cd rust-core
+          wasm-pack build --target web --out-dir ../src/wasm/pkg
+
       - name: Install dependencies
         run: npm ci
 

@@ -373,10 +373,12 @@ export function useCrypto() {
   return {
     // 狀態
     initialized: state.initialized,
+    isInitialized: state.initialized, // 別名
     loading: state.loading,
     error: state.error,
     version: state.version,
     hasIdentity: !!state.identity,
+    identity: state.identity, // 暴露完整身份物件 (用於驗證簽章)
     publicKeyBase64: state.identity?.publicKeyBase64 ?? null,
 
     // 金鑰管理
