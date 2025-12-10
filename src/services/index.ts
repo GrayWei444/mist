@@ -9,3 +9,7 @@ export { default as crypto } from './crypto';
 // MQTT 服務
 export * from './mqtt';
 export { default as mqtt } from './mqtt';
+
+// WebRTC 服務
+export * from './webrtc';
+export { default as webrtc } from './webrtc';

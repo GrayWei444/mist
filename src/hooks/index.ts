@@ -4,3 +4,4 @@
 
 export { useCrypto, default as useCryptoDefault } from './useCrypto';
 export { useMqtt, default as useMqttDefault } from './useMqtt';
+export { useWebRTC, default as useWebRTCDefault } from './useWebRTC';
