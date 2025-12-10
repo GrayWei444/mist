@@ -42,10 +42,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Planned - Phase 3
+### Planned - Phase 4
 - Message signing and verification integration
-- UI components for WebAuthn and verification
 - Full E2E encryption chat flow
+- Real-time P2P messaging via WebRTC
 
 ---
 
@@ -101,3 +101,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 **Type Declarations**
 - QRCode module type declaration
+
+---
+
+## [0.2.2] - 2024-12-10
+
+### Added - Phase 3: UI 整合
+
+**UI Components**
+- `BiometricAuth` - WebAuthn 生物辨識認證介面
+- `QRCodeVerification` - QR Code 驗證顯示 (含倒數計時)
+- `InviteLink` - 一次性邀請連結產生介面
+- `VerifiedFriendList` - 好友列表 (含信任等級篩選)
+- `AddFriendModal` - 新增好友彈窗 (整合 QR Code / 邀請連結)
+
+**App Integration**
+- FriendList 新增「加好友」按鈕
+- 空好友列表狀態顯示
+- AddFriendModal 整合
+
+**CI/CD**
+- GitHub Actions 新增 Rust/wasm-pack 建置步驟
+- 修復 WASM 模組未建置導致的部署失敗
