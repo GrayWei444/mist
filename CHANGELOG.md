@@ -42,10 +42,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Planned - Phase 2
-- Biometric authentication (WebAuthn)
-- Friend verification system (QR Code)
-- Message signing and verification
+### Planned - Phase 3
+- Message signing and verification integration
+- UI components for WebAuthn and verification
+- Full E2E encryption chat flow
 
 ---
 
@@ -79,3 +79,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `useCrypto` - Crypto module integration with key persistence
 - `useMqtt` - MQTT connection state and messaging
 - `useWebRTC` - P2P connection management
+
+---
+
+## [0.2.1] - 2024-12-10
+
+### Added - Phase 2: 安全認證與好友驗證
+
+**WebAuthn 生物辨識認證**
+- Platform authenticator support (指紋、Face ID)
+- Credential registration and authentication
+- Secure credential storage
+- `useWebAuthn` React Hook
+
+**好友驗證系統**
+- QR Code 面對面驗證 (🟢 已驗證)
+- 一次性邀請連結 (🟡 未驗證)
+- 分層信任機制 (TrustLevel)
+- Ed25519 數位簽章驗證
+- `useVerification` React Hook
+
+**Type Declarations**
+- QRCode module type declaration
