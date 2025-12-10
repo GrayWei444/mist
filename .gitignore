@@ -57,3 +57,4 @@ server/data/
 *.key
 credentials.json
 secrets.json
+.mcp.json

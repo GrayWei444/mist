@@ -132,7 +132,20 @@ mist/
   - UI/UX 概念驗證
   - PWA 安裝與離線支援
   - 訊息生命週期控制 Demo
-- [ ] Phase 1: 基礎通訊
+- [ ] **Phase 1: 基礎通訊** - 進行中
+  - [x] 後端基礎設施 (VPS + Docker)
+    - EMQX MQTT Broker (WebSocket 信令)
+    - Coturn STUN/TURN Server (NAT 穿透)
+    - Caddy SSL 反向代理
+  - [x] Rust WASM 加密核心
+    - Ed25519 身份金鑰 (簽章)
+    - X25519 金鑰交換
+    - X3DH 初始金鑰協商
+    - Double Ratchet 前向保密
+    - AES-256-GCM 對稱加密
+  - [ ] 前端 WASM 整合
+  - [ ] MQTT 連線服務
+  - [ ] WebRTC P2P 連線
 - [ ] Phase 2: 安全與信任
 - [ ] Phase 3: 高級功能
 - [ ] Phase 4: 商業化

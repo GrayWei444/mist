@@ -1,0 +1,45 @@
+# SafeTalk Caddy Configuration
+# 請將 safetalk.example.com 替換為您的網域
+
+safetalk.example.com {
+    # 啟用 gzip 壓縮
+    encode gzip
+
+    # PWA 靜態檔案
+    root * /srv/app
+    file_server
+
+    # Service Worker 需要正確的 Cache-Control
+    header /sw.js Cache-Control "no-cache"
+
+    # PWA Manifest
+    header /manifest.json {
+        Content-Type application/manifest+json
+        Cache-Control "public, max-age=86400"
+    }
+
+    # WASM 檔案
+    header /*.wasm {
+        Content-Type application/wasm
+        Cache-Control "public, max-age=31536000"
+    }
+
+    # WebSocket 代理到 EMQX
+    reverse_proxy /mqtt* emqx:8083
+
+    # SPA fallback
+    try_files {path} /index.html
+
+    # 安全標頭
+    header {
+        # 禁止 iframe 嵌入
+        X-Frame-Options DENY
+        # XSS 保護
+        X-Content-Type-Options nosniff
+        X-XSS-Protection "1; mode=block"
+        # HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        # CSP - 根據需求調整
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://*.safetalk.example.com"
+    }
+}
