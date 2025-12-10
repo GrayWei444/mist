@@ -42,9 +42,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Added - Phase 1 (In Progress)
+### Planned - Phase 2
+- Biometric authentication (WebAuthn)
+- Friend verification system (QR Code)
+- Message signing and verification
 
-**Rust WASM Crypto Core** (2024-12-10)
+---
+
+## [0.2.0] - 2024-12-10
+
+### Added - Phase 1: 基礎通訊
+
+**Rust WASM Crypto Core**
 - `IdentityKeyPair` - Ed25519 signing keys for identity verification
 - `X25519KeyPair` - Elliptic curve Diffie-Hellman key exchange
 - `X3DH` - Extended Triple Diffie-Hellman initial key agreement
@@ -54,14 +63,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `signPreKey` - PreKey signing helper
 - `createPreKeyBundleJson` - WASM-friendly bundle serialization
 
-**Backend Infrastructure** (2024-12-10)
+**Backend Infrastructure**
 - VPS deployment via Hostinger (31.97.71.140)
 - EMQX 5.3.2 MQTT broker for WebSocket signaling
 - Coturn 4.6.3 STUN/TURN server for NAT traversal
 - Caddy reverse proxy with Let's Encrypt SSL
 - Domain: mqtt.alwaysbefound.com (temporary)
 
-### Planned
-- Frontend WASM integration
-- MQTT connection service
-- WebRTC P2P connection
+**Frontend Services**
+- `crypto.ts` - TypeScript wrapper for Rust WASM crypto module
+- `mqtt.ts` - MQTT over WebSocket signaling service
+- `webrtc.ts` - WebRTC P2P connection management
+
+**React Hooks**
+- `useCrypto` - Crypto module integration with key persistence
+- `useMqtt` - MQTT connection state and messaging
+- `useWebRTC` - P2P connection management
