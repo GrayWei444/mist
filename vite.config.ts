@@ -1,9 +1,22 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import path from 'path';
 
 export default defineConfig({
   base: '/mist/',
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@hooks': path.resolve(__dirname, './src/hooks'),
+      '@services': path.resolve(__dirname, './src/services'),
+      '@stores': path.resolve(__dirname, './src/stores'),
+      '@types': path.resolve(__dirname, './src/types'),
+      '@utils': path.resolve(__dirname, './src/utils'),
+      '@wasm': path.resolve(__dirname, './src/wasm'),
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -51,7 +64,14 @@ export default defineConfig({
     }),
   ],
   optimizeDeps: {
-    exclude: ['sql.js'],
+    exclude: ['sql.js', 'safetalk-core'],
+  },
+  // WASM 需要的設定
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
   },
   build: {
     target: 'esnext',
