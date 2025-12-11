@@ -7,12 +7,15 @@
 
 import { mqttService, MessageType, type MqttMessage } from './mqtt';
 
-// STUN/TURN 伺服器設定
+// ICE 伺服器設定
+// 連線優先順序：IPv6 直連 → STUN 打洞 → TURN 中繼（最後手段）
 const ICE_SERVERS: RTCIceServer[] = [
-  // 公共 STUN 伺服器
+  // 1. 自架 STUN（優先使用，Coturn 同時支援 STUN）
+  { urls: 'stun:31.97.71.140:3478' },
+  // 2. 公共 STUN 備用
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  // 自架 Coturn 伺服器
+  // 3. TURN 中繼（最後手段，有頻寬成本）
   {
     urls: 'turn:31.97.71.140:3478',
     username: 'mist',
@@ -24,6 +27,14 @@ const ICE_SERVERS: RTCIceServer[] = [
     credential: 'mist_turn_2024',
   },
 ];
+
+// ICE 連線類型（用於監控）
+export enum IceCandidateType {
+  HOST = 'host',       // 直連（IPv4/IPv6）
+  SRFLX = 'srflx',     // STUN 反射
+  PRFLX = 'prflx',     // Peer 反射
+  RELAY = 'relay',     // TURN 中繼
+}
 
 // 連線狀態
 export enum PeerConnectionState {
@@ -262,6 +273,11 @@ class WebRTCService {
     connection.oniceconnectionstatechange = () => {
       const state = this.mapIceConnectionState(connection.iceConnectionState);
       this.updatePeerState(remotePublicKeyBase64, state);
+
+      // 連線成功時，記錄使用的連線類型
+      if (connection.iceConnectionState === 'connected' || connection.iceConnectionState === 'completed') {
+        this.logConnectionType(connection, remotePublicKeyBase64);
+      }
     };
 
     // 連線狀態變化
@@ -476,6 +492,59 @@ class WebRTCService {
         return PeerConnectionState.CLOSED;
       default:
         return PeerConnectionState.NEW;
+    }
+  }
+
+  /**
+   * 記錄連線類型（用於監控 P2P 連線品質）
+   * - host: IPv4/IPv6 直連（最佳）
+   * - srflx: STUN 反射（NAT 打洞）
+   * - prflx: Peer 反射
+   * - relay: TURN 中繼（最後手段）
+   */
+  private async logConnectionType(connection: RTCPeerConnection, peerKey: string): Promise<void> {
+    try {
+      const stats = await connection.getStats();
+      let candidateType = 'unknown';
+      let localAddress = '';
+      let remoteAddress = '';
+
+      stats.forEach((report) => {
+        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+          const localId = report.localCandidateId;
+          const remoteId = report.remoteCandidateId;
+
+          stats.forEach((candidate) => {
+            if (candidate.id === localId) {
+              candidateType = candidate.candidateType || 'unknown';
+              localAddress = `${candidate.address}:${candidate.port}`;
+            }
+            if (candidate.id === remoteId) {
+              remoteAddress = `${candidate.address}:${candidate.port}`;
+            }
+          });
+        }
+      });
+
+      // 根據連線類型顯示不同的標記
+      const typeEmoji = {
+        host: '🟢 直連',
+        srflx: '🟡 STUN',
+        prflx: '🟡 Peer反射',
+        relay: '🔴 TURN中繼',
+        unknown: '⚪ 未知',
+      }[candidateType] || '⚪ 未知';
+
+      console.log(
+        `[WebRTC] ${typeEmoji} | ${peerKey.slice(0, 8)}... | ${localAddress} ↔ ${remoteAddress}`
+      );
+
+      // 如果使用 TURN，發出警告
+      if (candidateType === 'relay') {
+        console.warn('[WebRTC] ⚠️ 使用 TURN 中繼，將消耗伺服器頻寬');
+      }
+    } catch (error) {
+      console.error('[WebRTC] Failed to get connection stats:', error);
     }
   }
 }

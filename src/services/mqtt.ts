@@ -9,13 +9,13 @@ import mqtt, { MqttClient, IClientOptions } from 'mqtt';
 
 // MQTT 設定
 const MQTT_CONFIG = {
-  // 使用 EMQX 公共 broker (支援 WebSocket over TLS)
-  broker: 'wss://broker.emqx.io:8084/mqtt',
+  // 生產環境 - 自有 VPS (Caddy 反向代理)
+  broker: 'wss://mqtt.alwaysbefound.com/mqtt',
   // 開發環境 (本地 EMQX)
   devBroker: 'ws://localhost:8083/mqtt',
   // 重連設定
   reconnectPeriod: 3000,
-  connectTimeout: 15000, // 縮短超時時間
+  connectTimeout: 15000,
   keepalive: 60,
 };
 

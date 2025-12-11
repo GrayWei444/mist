@@ -416,10 +416,59 @@ Closes #123
 | 信令 | MQTT over WSS | 控制指令交換 |
 | 推播 | Web Push API | 通知（不含訊息內文） |
 | 後端 | Docker (Caddy + EMQX + Coturn) | 基礎設施 |
+| VPS 管理 | Hostinger API (MCP) | 遠端伺服器管理 |
 
 ---
 
-## 5. 目錄結構
+## 5. VPS 部署資訊
+
+### 伺服器
+
+| 項目 | 值 |
+|------|------|
+| **VPS ID** | `937047` |
+| **IP** | `31.97.71.140` |
+| **主機名** | `srv937047.hstgr.cloud` |
+| **OS** | Ubuntu 24.04 with Docker |
+
+### 域名
+
+| 域名 | 用途 |
+|------|------|
+| `mqtt.alwaysbefound.com` | MQTT WebSocket (WSS) |
+
+### Docker 服務
+
+| 容器 | 用途 | 端口 |
+|------|------|------|
+| `mist-emqx` | MQTT Broker | 1883, 8083, 18083 |
+| `mist-coturn` | STUN/TURN | 3478, 5349 |
+| `mist-caddy-mqtt` | 反向代理 | 443 |
+
+### 連線配置
+
+```typescript
+// MQTT (src/services/mqtt.ts)
+broker: 'wss://mqtt.alwaysbefound.com/mqtt'
+
+// TURN (src/services/webrtc.ts)
+turn: 'turn:31.97.71.140:3478'
+turns: 'turns:31.97.71.140:5349'
+credential: 'mist' / 'mist_turn_2024'
+```
+
+### MCP 管理指令
+
+透過 Hostinger API MCP 可執行：
+- `VPS_getVirtualMachinesV1` - 查看 VPS 列表
+- `VPS_getProjectListV1` - 查看 Docker 專案
+- `VPS_getFirewallDetailsV1` - 查看防火牆規則
+- `VPS_createFirewallRuleV1` - 新增防火牆規則
+- `VPS_syncFirewallV1` - 同步防火牆
+
+---
+
+## 6. 目錄結構
 
 ```
 mist/
@@ -462,7 +511,7 @@ mist/
 
 ---
 
-## 6. 開發指令
+## 7. 開發指令
 
 ```bash
 # 安裝依賴
@@ -492,9 +541,9 @@ cd server && docker-compose up -d
 
 ---
 
-## 7. 安全規範
+## 8. 安全規範
 
-### 7.1 絕對禁止
+### 8.1 絕對禁止
 
 | 項目 | 說明 |
 |------|------|
@@ -504,7 +553,7 @@ cd server && docker-compose up -d
 | ❌ 信任客戶端 | 所有輸入都要驗證 |
 | ❌ 暴露內網 IP | WebRTC SDP 必須過濾 |
 
-### 7.2 必須執行
+### 8.2 必須執行
 
 | 項目 | 做法 |
 |------|------|
@@ -513,7 +562,7 @@ cd server && docker-compose up -d
 | ✅ 清零敏感資料 | 使用後立即覆寫記憶體 |
 | ✅ 錯誤訊息脫敏 | 不暴露系統內部資訊 |
 
-### 7.3 加密標準
+### 8.3 加密標準
 
 | 用途 | 演算法 |
 |------|--------|
@@ -525,9 +574,9 @@ cd server && docker-compose up -d
 
 ---
 
-## 8. 重要設計決策
+## 9. 重要設計決策
 
-### 8.1 訊息生命週期控制
+### 9.1 訊息生命週期控制
 
 訊息刪除邏輯在 Rust WASM 層強制執行，UI 層無法攔截：
 
@@ -547,13 +596,13 @@ pub fn cleanup_expired_messages(db: &Database) {
 }
 ```
 
-### 8.2 金鑰管理
+### 9.2 金鑰管理
 
 - 私鑰永遠不離開客戶端
 - 私鑰儲存在 IndexedDB，由 WebAuthn 生物辨識保護
 - 公鑰是唯一的使用者識別碼
 
-### 8.3 群組限制
+### 9.3 群組限制
 
 - 最大 8 人（WebRTC Full Mesh 效能考量）
 - 每人維護 N-1 條連線
@@ -561,7 +610,7 @@ pub fn cleanup_expired_messages(db: &Database) {
 
 ---
 
-## 9. 資料庫 Schema
+## 10. 資料庫 Schema
 
 ```sql
 -- 聯絡人
@@ -604,7 +653,7 @@ CREATE TABLE ratchet_states (
 
 ---
 
-## 10. 測試要求
+## 11. 測試要求
 
 | 類型 | 覆蓋率要求 | 工具 |
 |------|------------|------|
@@ -615,7 +664,7 @@ CREATE TABLE ratchet_states (
 
 ---
 
-## 11. 多語系 (i18n)
+## 12. 多語系 (i18n)
 
 使用 react-i18next，所有 UI 文字必須放到語言檔。
 
@@ -634,7 +683,7 @@ function Component() {
 
 ---
 
-## 12. 好友系統
+## 13. 好友系統
 
 採用「分層信任」機制，平衡安全性與便利性：
 
@@ -656,7 +705,7 @@ function Component() {
 
 ---
 
-## 13. 金流設計
+## 14. 金流設計
 
 | 地區 | 服務商 | 說明 |
 |------|--------|------|
@@ -667,7 +716,7 @@ function Component() {
 
 ---
 
-## 14. 相關文件
+## 15. 相關文件
 
 - [技術架構](docs/ARCHITECTURE.md)
 - [系統設計](docs/SYSTEM_DESIGN.md)
@@ -678,7 +727,7 @@ function Component() {
 
 ---
 
-## 15. 常見問題
+## 16. 常見問題
 
 ### Q: 為什麼不用 Flutter？
 A: Flutter Web 與 Rust WASM 的整合工具鏈不成熟，React + wasm-bindgen 更穩定。

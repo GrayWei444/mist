@@ -543,26 +543,83 @@ CREATE INDEX idx_messages_expires ON messages(expires_at) WHERE expires_at IS NO
 CREATE INDEX idx_ratchet_peer ON ratchet_states(peer_pubkey);
 ```
 
-## 10. 開發路線圖
+## 10. VPS 部署資訊
 
-### Phase 0: 技術驗證 ✅ 進行中
+### 伺服器配置
 
-- [ ] Docker 環境部署 (Caddy + EMQX + Coturn)
-- [ ] React + Vite + TailwindCSS 專案建立
-- [ ] Rust WASM 效能驗證（1GB SHA256 Hash）
-- [ ] sql.js + IndexedDB 整合測試
+| 項目 | 值 |
+|------|------|
+| **IP** | `31.97.71.140` |
+| **IPv6** | `2a02:4780:5e:a793::1` |
+| **主機名** | `srv937047.hstgr.cloud` |
+| **OS** | Ubuntu 24.04 with Docker |
+| **規格** | KVM 2 (2 CPU, 8GB RAM, 100GB Disk) |
 
-### Phase 1: 基礎通訊
+### 域名配置
 
-- [ ] 本機公私鑰生成
-- [ ] MQTT 連線與重連機制
-- [ ] 1 對 1 WebRTC 文字傳輸
-- [ ] 基本聊天 UI
+| 域名 | 用途 |
+|------|------|
+| `mqtt.alwaysbefound.com` | MQTT WebSocket (WSS) |
 
-### Phase 2: 安全與信任
+### Docker 服務
 
+| 容器 | 映像 | 端口 | 狀態 |
+|------|------|------|------|
+| **mist-emqx** | emqx/emqx:5.3 | 1883, 8083-8084, 18083 | ✅ Running |
+| **mist-coturn** | coturn/coturn:4.6 | 3478, 5349, 49152-49200 | ✅ Running |
+| **mist-caddy-mqtt** | caddy:2-alpine | 443 (反向代理) | ✅ Running |
+
+### 防火牆規則 (Firewall ID: 105804)
+
+| 端口 | 協議 | 用途 |
+|------|------|------|
+| 22 | TCP | SSH |
+| 80, 443 | TCP | HTTP/HTTPS |
+| 1883 | TCP | MQTT |
+| 8083 | TCP | MQTT WebSocket |
+| 3478 | UDP/TCP | STUN/TURN |
+| 5349 | TCP | TURN over TLS |
+| 49152-49200 | UDP | TURN 中繼端口 |
+
+### 連線配置
+
+```typescript
+// 前端 MQTT 連線
+const MQTT_BROKER = 'wss://mqtt.alwaysbefound.com/mqtt';
+
+// WebRTC TURN 伺服器
+const TURN_SERVER = {
+  urls: 'turn:31.97.71.140:3478',
+  username: 'mist',
+  credential: 'mist_turn_2024',
+};
+```
+
+---
+
+## 11. 開發路線圖
+
+### Phase 0: 技術驗證 ✅ 完成
+
+- [x] Docker 環境部署 (Caddy + EMQX + Coturn)
+- [x] React + Vite + TailwindCSS 專案建立
+- [x] Rust WASM 整合
+- [x] VPS 防火牆配置
+
+### Phase 1: 基礎通訊 ✅ 大部分完成
+
+- [x] 本機公私鑰生成
+- [x] MQTT 連線與重連機制
+- [x] 1 對 1 WebRTC 文字傳輸
+- [x] 基本聊天 UI
+- [x] PIN 認證畫面
+- [x] 身份自動生成
+- [x] 身份卡 UI（顯示公鑰）
+
+### Phase 2: 安全與信任 🔄 進行中
+
+- [x] QR Code 掃描與公鑰交換 (X3DH 格式統一)
 - [ ] 一次性邀請連結功能
-- [ ] QR Code 掃描與公鑰交換
 - [ ] 分層信任機制（已驗證/未驗證）
 - [ ] 驗證升級流程
 - [ ] X3DH + Double Ratchet 實作
