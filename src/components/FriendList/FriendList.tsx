@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useChatStore } from '../../stores/chatStore';
+import { useCrypto } from '../../hooks/useCrypto';
 import { FriendItem } from './FriendItem';
 import { AddFriendModal } from '../Verification/AddFriendModal';
 
@@ -9,7 +10,23 @@ interface FriendListProps {
 
 export function FriendList({ onBackToDisguise }: FriendListProps) {
   const { friends, currentFriendId, selectFriend, addFriend } = useChatStore();
+  const { publicKeyBase64 } = useCrypto();
   const [showAddFriend, setShowAddFriend] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // 複製 ID 到剪貼簿
+  const copyId = async () => {
+    if (publicKeyBase64) {
+      await navigator.clipboard.writeText(publicKeyBase64);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // 縮短顯示的 ID
+  const shortId = publicKeyBase64
+    ? `${publicKeyBase64.slice(0, 8)}...${publicKeyBase64.slice(-6)}`
+    : '載入中...';
 
   const handleFriendAdded = (publicKey: string, isVerified: boolean) => {
     const trustLevel = isVerified ? 'verified' : 'unverified';
@@ -44,6 +61,50 @@ export function FriendList({ onBackToDisguise }: FriendListProps) {
               <span className="text-dark-300">☁️</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* 我的身份卡片 */}
+      <div className="px-4 py-3 border-b border-dark-border">
+        <div className="flex items-center gap-3 p-3 bg-dark-700/50 rounded-xl">
+          {/* 頭像 */}
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-mist-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-lg font-bold">我</span>
+          </div>
+          {/* 身份資訊 */}
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-medium text-sm">我的身份</p>
+            <div className="flex items-center gap-2 mt-1">
+              <code className="text-xs text-dark-400 font-mono truncate">
+                {shortId}
+              </code>
+              <button
+                onClick={copyId}
+                className="text-mist-400 hover:text-mist-300 transition-colors flex-shrink-0"
+                title="複製完整 ID"
+              >
+                {copied ? (
+                  <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+          {/* QR Code 按鈕 */}
+          <button
+            onClick={() => setShowAddFriend(true)}
+            className="p-2 bg-mist-500/20 hover:bg-mist-500/30 rounded-lg transition-colors"
+            title="顯示我的 QR Code"
+          >
+            <svg className="w-5 h-5 text-mist-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+            </svg>
+          </button>
         </div>
       </div>
 
