@@ -1,18 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FriendList } from '../components/FriendList/FriendList';
 import { ChatRoom } from '../components/ChatRoom/ChatRoom';
 import { useChatStore } from '../stores/chatStore';
 import { useCrypto } from '../hooks/useCrypto';
+import { mqttService, MessageType, ConnectionState } from '../services/mqtt';
 
 interface ChatAppProps {
   onBackToDisguise: () => void;
 }
 
+// X3DH 初始化訊息結構
+interface X3DHInitPayload {
+  ephemeralPublicKey: string;
+  senderName: string;
+}
+
 export function ChatApp({ onBackToDisguise }: ChatAppProps) {
-  const { currentFriendId, clearSelection } = useChatStore();
-  const { isInitialized, hasIdentity, generateIdentity, loading } = useCrypto();
+  const { currentFriendId, clearSelection, addFriend, getFriendByPublicKey } = useChatStore();
+  const { isInitialized, hasIdentity, generateIdentity, loading, identity } = useCrypto();
   const [isMobile, setIsMobile] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const mqttListenerRef = useRef<(() => void) | null>(null);
 
   // 自動生成身份（首次使用時）
   useEffect(() => {
@@ -28,6 +36,56 @@ export function ChatApp({ onBackToDisguise }: ChatAppProps) {
       }
     }
   }, [isInitialized, hasIdentity, loading, isGenerating, generateIdentity]);
+
+  // MQTT 連接與 X3DH_INIT 監聽（接收好友添加請求）
+  useEffect(() => {
+    if (!identity?.publicKeyBase64) return;
+
+    const setupMqtt = async () => {
+      try {
+        // 連接 MQTT (如果尚未連接)
+        if (mqttService.getState() !== ConnectionState.CONNECTED) {
+          console.log('[ChatApp] Connecting to MQTT...');
+          await mqttService.connect(identity.publicKeyBase64);
+          console.log('[ChatApp] MQTT connected');
+        }
+
+        // 監聽 X3DH_INIT 訊息（有人掃描了我的 QR Code）
+        if (!mqttListenerRef.current) {
+          mqttListenerRef.current = mqttService.onMessage(MessageType.X3DH_INIT, (msg) => {
+            const senderPk = msg.from;
+            const payload = msg.payload as X3DHInitPayload;
+
+            console.log('[ChatApp] Received X3DH_INIT from:', senderPk.slice(0, 16) + '...');
+
+            // 檢查是否已經是好友
+            const existingFriend = getFriendByPublicKey(senderPk);
+            if (existingFriend) {
+              console.log('[ChatApp] Already friends with:', senderPk.slice(0, 16));
+              return;
+            }
+
+            // 添加為好友
+            const friendName = payload.senderName || `好友 ${senderPk.slice(0, 8)}`;
+            addFriend(senderPk, friendName, 'verified');
+            console.log('[ChatApp] Added new friend:', friendName);
+          });
+          console.log('[ChatApp] X3DH_INIT listener registered');
+        }
+      } catch (err) {
+        console.error('[ChatApp] MQTT setup error:', err);
+      }
+    };
+
+    setupMqtt();
+
+    return () => {
+      if (mqttListenerRef.current) {
+        mqttListenerRef.current();
+        mqttListenerRef.current = null;
+      }
+    };
+  }, [identity?.publicKeyBase64, addFriend, getFriendByPublicKey]);
 
   // Responsive breakpoint detection
   useEffect(() => {
