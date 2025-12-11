@@ -16,9 +16,17 @@ interface X3DHInitPayload {
   senderName: string;
 }
 
+// 加密訊息 payload 結構
+interface EncryptedMessageData {
+  content: string;
+  type: 'text' | 'image' | 'file';
+  ttl?: number;
+  timestamp: number;
+}
+
 export function ChatApp({ onBackToDisguise }: ChatAppProps) {
   const { currentFriendId, clearSelection } = useChatStore();
-  const { cryptoReady, hasIdentity, generateIdentity, publicKey, isInitializing, acceptSession } = useApp();
+  const { cryptoReady, hasIdentity, generateIdentity, publicKey, isInitializing, acceptSession, decryptMessage } = useApp();
   const [isMobile, setIsMobile] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -118,6 +126,64 @@ export function ChatApp({ onBackToDisguise }: ChatAppProps) {
       if (unsubscribeAll) unsubscribeAll();
     };
   }, [publicKey, acceptSession]); // 依賴 publicKey 和 acceptSession
+
+  // 監聽加密訊息（全局接收，不依賴 ChatRoom 是否打開）
+  useEffect(() => {
+    if (!publicKey) return;
+
+    let isMounted = true;
+
+    const unsubscribeEncrypted = mqttService.onMessage(MessageType.ENCRYPTED_MESSAGE, (msg) => {
+      const senderPk = msg.from;
+      const encryptedPayload = msg.payload; // 整個 payload 就是加密後的物件
+
+      console.log('[ChatApp] 📩 Received ENCRYPTED_MESSAGE from:', senderPk?.slice(0, 16) + '...');
+
+      if (!senderPk || !isMounted) return;
+
+      // 使用 getState() 確保獲取最新狀態
+      const { getFriendByPublicKey: getFriend, receiveMessage: receive } = useChatStore.getState();
+
+      // 檢查是否為已知好友
+      const friend = getFriend(senderPk);
+      if (!friend) {
+        console.warn('[ChatApp] Received message from unknown sender:', senderPk.slice(0, 16) + '...');
+        return;
+      }
+
+      try {
+        // 解密訊息（返回 JSON 字串）
+        const decrypted = decryptMessage(senderPk, encryptedPayload);
+        const messageData = JSON.parse(decrypted) as EncryptedMessageData;
+        console.log('[ChatApp] ✅ Decrypted message from:', friend.name);
+
+        // 構建完整的 Message 物件
+        const message = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          senderId: friend.id,
+          content: messageData.content,
+          timestamp: messageData.timestamp || Date.now(),
+          type: messageData.type || 'text' as const,
+          isRead: false,
+          isBurned: false,
+          ttl: messageData.ttl,
+          encrypted: true,
+        };
+
+        // 儲存訊息
+        receive(friend.id, message);
+      } catch (err) {
+        console.error('[ChatApp] Failed to decrypt message:', err);
+      }
+    });
+
+    console.log('[ChatApp] ENCRYPTED_MESSAGE listener registered');
+
+    return () => {
+      isMounted = false;
+      unsubscribeEncrypted();
+    };
+  }, [publicKey, decryptMessage]);
 
   // Responsive breakpoint detection
   useEffect(() => {
