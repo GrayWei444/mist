@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { WeatherApp } from './pages/WeatherApp';
 import { ChatApp } from './pages/ChatApp';
 import { DevToolsPage } from './pages/DevToolsPage';
+import { AuthScreen } from './pages/AuthScreen';
 import { useChatStore } from './stores/chatStore';
 
 const INACTIVITY_TIMEOUT = 30000; // 30 seconds of inactivity
 
-type AppMode = 'disguise' | 'chat' | 'devtools';
+type AppMode = 'disguise' | 'auth' | 'chat' | 'devtools';
 
 function App() {
   const [mode, setMode] = useState<AppMode>('disguise');
@@ -50,6 +51,11 @@ function App() {
     };
   }, [isDisguiseMode, exitToDisguise]);
 
+  const enterAuth = () => {
+    // 進入驗證頁面
+    setMode('auth');
+  };
+
   const enterChat = () => {
     // Reset all data when entering chat
     resetAll();
@@ -73,11 +79,13 @@ function App() {
   switch (mode) {
     case 'devtools':
       return <DevToolsPage onBack={exitToDisguise} onEnterChat={enterChatFromDevTools} />;
+    case 'auth':
+      return <AuthScreen onSuccess={enterChat} onBack={exitToDisguise} />;
     case 'chat':
       return <ChatApp onBackToDisguise={exitChat} />;
     case 'disguise':
     default:
-      return <WeatherApp onEnterChat={enterChat} onEnterDevTools={enterDevTools} />;
+      return <WeatherApp onEnterChat={enterAuth} onEnterDevTools={enterDevTools} />;
   }
 }
 
