@@ -1,5 +1,6 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { useChatStore } from '../../stores/chatStore';
+import { useChat } from '../../hooks/useChat';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 
@@ -8,11 +9,25 @@ interface ChatRoomProps {
 }
 
 export function ChatRoom({ onBack }: ChatRoomProps) {
-  const { friends, currentFriendId, messages, sendMessage, burnMessage } = useChatStore();
+  const { burnMessage } = useChatStore();
+  const {
+    isReady,
+    currentFriend,
+    currentMessages,
+    sendEncryptedMessage,
+    isPeerConnected,
+  } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const currentFriend = friends.find(f => f.id === currentFriendId);
-  const currentMessages = currentFriendId ? messages[currentFriendId] || [] : [];
+  // 發送訊息（使用加密）
+  const handleSendMessage = useCallback(
+    (content: string) => {
+      if (isReady) {
+        sendEncryptedMessage(content, 'text');
+      }
+    },
+    [isReady, sendEncryptedMessage]
+  );
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -64,10 +79,31 @@ export function ChatRoom({ onBack }: ChatRoomProps) {
 
         {/* Friend info */}
         <div className="flex-1">
-          <h2 className="font-medium text-white">{currentFriend.name}</h2>
-          <p className="text-xs text-dark-400">
-            {currentFriend.online ? '在線' : '離線'}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <h2 className="font-medium text-white">{currentFriend.name}</h2>
+            {/* Trust Level */}
+            <span
+              className="text-xs"
+              title={currentFriend.trustLevel === 'verified' ? '已驗證' : '未驗證'}
+            >
+              {currentFriend.trustLevel === 'verified' ? '🟢' : '🟡'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-dark-400">
+              {currentFriend.online ? '在線' : '離線'}
+            </p>
+            {/* Connection indicator */}
+            {isPeerConnected && (
+              <span className="text-xs text-green-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                P2P
+              </span>
+            )}
+            {isReady && !isPeerConnected && (
+              <span className="text-xs text-mist-400">E2E</span>
+            )}
+          </div>
         </div>
 
         {/* Menu button */}
@@ -89,7 +125,7 @@ export function ChatRoom({ onBack }: ChatRoomProps) {
       </div>
 
       {/* Input area */}
-      <ChatInput onSend={sendMessage} />
+      <ChatInput onSend={handleSendMessage} />
     </div>
   );
 }

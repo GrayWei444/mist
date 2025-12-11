@@ -8,8 +8,15 @@ interface FriendListProps {
 }
 
 export function FriendList({ onBackToDisguise }: FriendListProps) {
-  const { friends, currentFriendId, selectFriend } = useChatStore();
+  const { friends, currentFriendId, selectFriend, addFriend } = useChatStore();
   const [showAddFriend, setShowAddFriend] = useState(false);
+
+  const handleFriendAdded = (publicKey: string, isVerified: boolean) => {
+    const trustLevel = isVerified ? 'verified' : 'unverified';
+    const name = `好友 ${publicKey.slice(0, 8)}...`;
+    addFriend(publicKey, name, trustLevel);
+    setShowAddFriend(false);
+  };
 
   return (
     <div className="h-full flex flex-col bg-dark-bg">
@@ -87,10 +94,7 @@ export function FriendList({ onBackToDisguise }: FriendListProps) {
       <AddFriendModal
         isOpen={showAddFriend}
         onClose={() => setShowAddFriend(false)}
-        onFriendAdded={(publicKey, isVerified) => {
-          console.log('[FriendList] Friend added:', { publicKey, isVerified });
-          setShowAddFriend(false);
-        }}
+        onFriendAdded={handleFriendAdded}
       />
     </div>
   );

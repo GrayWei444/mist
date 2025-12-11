@@ -1,13 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface WeatherWidgetProps {
   onSecretEntry: () => void;
+  onDevTools?: () => void;
 }
 
-export function WeatherWidget({ onSecretEntry }: WeatherWidgetProps) {
+export function WeatherWidget({ onSecretEntry, onDevTools }: WeatherWidgetProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [pressProgress, setPressProgress] = useState(0);
+
+  // Triple tap detection for DevTools
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleTempTap = useCallback(() => {
+    tapCountRef.current += 1;
+
+    if (tapTimerRef.current) {
+      clearTimeout(tapTimerRef.current);
+    }
+
+    if (tapCountRef.current >= 5) {
+      // 5 次點擊進入 DevTools
+      tapCountRef.current = 0;
+      onDevTools?.();
+      return;
+    }
+
+    tapTimerRef.current = setTimeout(() => {
+      tapCountRef.current = 0;
+    }, 500);
+  }, [onDevTools]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -97,8 +121,11 @@ export function WeatherWidget({ onSecretEntry }: WeatherWidgetProps) {
         )}
       </div>
 
-      {/* Temperature */}
-      <div className="text-white text-7xl font-light mb-2">
+      {/* Temperature - 5 taps to enter DevTools */}
+      <div
+        className="text-white text-7xl font-light mb-2 cursor-default"
+        onClick={handleTempTap}
+      >
         24°
       </div>
 
@@ -127,6 +154,16 @@ export function WeatherWidget({ onSecretEntry }: WeatherWidgetProps) {
       <div className="absolute bottom-4 text-white/20 text-xs">
         長按太陽進入
       </div>
+
+      {/* DevTools button - visible for development */}
+      {onDevTools && (
+        <button
+          onClick={onDevTools}
+          className="absolute bottom-4 right-4 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-xs rounded-full transition-all backdrop-blur-sm border border-white/10"
+        >
+          🛠️ DevTools
+        </button>
+      )}
     </div>
   );
 }

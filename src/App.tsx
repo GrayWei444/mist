@@ -1,16 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { WeatherApp } from './pages/WeatherApp';
 import { ChatApp } from './pages/ChatApp';
+import { DevToolsPage } from './pages/DevToolsPage';
 import { useChatStore } from './stores/chatStore';
 
 const INACTIVITY_TIMEOUT = 30000; // 30 seconds of inactivity
 
+type AppMode = 'disguise' | 'chat' | 'devtools';
+
 function App() {
-  const [isDisguiseMode, setIsDisguiseMode] = useState(true);
+  const [mode, setMode] = useState<AppMode>('disguise');
   const resetAll = useChatStore(state => state.resetAll);
 
+  // 向後兼容的 state
+  const isDisguiseMode = mode === 'disguise';
+
   const exitToDisguise = useCallback(() => {
-    setIsDisguiseMode(true);
+    setMode('disguise');
   }, []);
 
   // Inactivity timer - only active when in chat mode
@@ -47,18 +53,27 @@ function App() {
   const enterChat = () => {
     // Reset all data when entering chat
     resetAll();
-    setIsDisguiseMode(false);
+    setMode('chat');
   };
 
   const exitChat = () => {
-    setIsDisguiseMode(true);
+    setMode('disguise');
   };
 
-  if (isDisguiseMode) {
-    return <WeatherApp onEnterChat={enterChat} />;
-  }
+  const enterDevTools = () => {
+    setMode('devtools');
+  };
 
-  return <ChatApp onBackToDisguise={exitChat} />;
+  // 根據模式渲染不同頁面
+  switch (mode) {
+    case 'devtools':
+      return <DevToolsPage onBack={exitToDisguise} />;
+    case 'chat':
+      return <ChatApp onBackToDisguise={exitChat} />;
+    case 'disguise':
+    default:
+      return <WeatherApp onEnterChat={enterChat} onEnterDevTools={enterDevTools} />;
+  }
 }
 
 export default App;

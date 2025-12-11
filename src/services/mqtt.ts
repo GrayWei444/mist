@@ -28,6 +28,8 @@ export enum MessageType {
   WEBRTC_OFFER = 'webrtc_offer',
   WEBRTC_ANSWER = 'webrtc_answer',
   WEBRTC_ICE = 'webrtc_ice',
+  // 加密訊息
+  ENCRYPTED_MESSAGE = 'encrypted_message',
   // 控制訊息
   PING = 'ping',
   PONG = 'pong',
