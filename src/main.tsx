@@ -4,14 +4,7 @@ import App from './App';
 import { AppProvider } from './providers';
 import './index.css';
 
-// 註冊 Service Worker
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((error) => {
-      console.error('Service Worker registration failed:', error);
-    });
-  });
-}
+// Service Worker 由 VitePWA 插件自動處理 (vite.config.ts)
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
