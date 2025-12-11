@@ -7,6 +7,14 @@
 
 import mqtt, { MqttClient, IClientOptions } from 'mqtt';
 
+/**
+ * 將 Base64 轉換為 URL 安全格式（用於 MQTT 主題）
+ * Base64 的 + 和 / 在 MQTT 中是特殊字符
+ */
+function toUrlSafeBase64(base64: string): string {
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
 // MQTT 設定
 const MQTT_CONFIG = {
   // 生產環境 - 自有 VPS (Caddy 反向代理)
@@ -89,8 +97,10 @@ class MqttService {
     if (!this.publicKeyBase64) {
       throw new Error('Not connected');
     }
+    // 使用 URL 安全的 Base64 作為主題名稱
+    const safeKey = toUrlSafeBase64(this.publicKeyBase64);
     return {
-      inbox: `mist/user/${this.publicKeyBase64}/inbox`,
+      inbox: `mist/user/${safeKey}/inbox`,
       broadcast: 'mist/broadcast',
       group: (groupId: string) => `mist/group/${groupId}`,
     };
@@ -243,10 +253,12 @@ class MqttService {
       throw new Error('Not connected');
     }
 
-    const topic = `mist/user/${recipientPublicKeyBase64}/inbox`;
+    // 將接收者公鑰轉換為 URL 安全格式用於主題
+    const safeRecipientKey = toUrlSafeBase64(recipientPublicKeyBase64);
+    const topic = `mist/user/${safeRecipientKey}/inbox`;
     const message: MqttMessage = {
       type,
-      from: this.publicKeyBase64,
+      from: this.publicKeyBase64,  // 保持原始格式用於識別
       to: recipientPublicKeyBase64,
       payload,
       timestamp: Date.now(),
