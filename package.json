@@ -13,6 +13,7 @@
     "wasm:build": "cd rust-core && wasm-pack build --target web --out-dir ../src/wasm/pkg"
   },
   "dependencies": {
+    "html5-qrcode": "^2.3.8",
     "idb": "^7.1.0",
     "mqtt": "^5.3.0",
     "qrcode": "^1.5.3",
