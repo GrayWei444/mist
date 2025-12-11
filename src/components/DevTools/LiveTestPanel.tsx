@@ -131,7 +131,8 @@ export function LiveTestPanel({ onEnterChat }: LiveTestPanelProps) {
       const session = Session.initAsBob(
         sharedSecret,
         wasmRef.current.signedPreKey.privateKey,
-        wasmRef.current.signedPreKey.publicKey
+        wasmRef.current.signedPreKey.publicKey,
+        ephemeralPubKey
       );
       wasmRef.current.session = session;
 

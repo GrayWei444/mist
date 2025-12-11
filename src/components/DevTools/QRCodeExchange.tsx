@@ -246,7 +246,8 @@ export function QRCodeExchange() {
       const aliceSession = Session.initAsBob(
         aliceSharedSecret,
         aliceSignedPreKey.privateKey,
-        aliceSignedPreKey.publicKey
+        aliceSignedPreKey.publicKey,
+        x3dhResult.ephemeralPublicKey
       );
       wasmRef.current.sessionA = aliceSession;
       addLog('   ✅ Alice 建立 Double Ratchet 會話');

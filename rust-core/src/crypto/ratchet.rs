@@ -196,27 +196,33 @@ impl RatchetSession {
     /// # 參數
     /// - `shared_secret`: X3DH 產生的共享密鑰
     /// - `signed_prekey_private`: Bob 的 Signed PreKey 私鑰
+    /// - `signed_prekey_public`: Bob 的 Signed PreKey 公鑰
+    /// - `remote_ephemeral_public`: Alice 的臨時公鑰 (用於雙向通訊)
     #[wasm_bindgen(js_name = initAsBob)]
     pub fn init_as_bob(
         shared_secret: &[u8],
         signed_prekey_private: &[u8],
         signed_prekey_public: &[u8],
+        remote_ephemeral_public: &[u8],
     ) -> Result<RatchetSession, JsError> {
         if shared_secret.len() != 32 {
             return Err(JsError::new("Shared secret must be 32 bytes"));
         }
 
-        let mut root_key = [0u8; 32];
-        root_key.copy_from_slice(shared_secret);
+        let dh_self = DhKeyPair {
+            public: signed_prekey_public.to_vec(),
+            private: signed_prekey_private.to_vec(),
+        };
+
+        // 使用 Alice 的臨時公鑰進行 DH 運算，衍生發送鏈金鑰
+        let dh_output = dh_self.diffie_hellman(remote_ephemeral_public)?;
+        let (root_key, chain_key_send) = Self::kdf_rk(shared_secret, &dh_output)?;
 
         Ok(RatchetSession {
-            dh_self: DhKeyPair {
-                public: signed_prekey_public.to_vec(),
-                private: signed_prekey_private.to_vec(),
-            },
-            dh_remote: None,
+            dh_self,
+            dh_remote: Some(remote_ephemeral_public.to_vec()),
             root_key,
-            chain_key_send: None,
+            chain_key_send: Some(chain_key_send),
             chain_key_recv: None,
             send_count: 0,
             recv_count: 0,

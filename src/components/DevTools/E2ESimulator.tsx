@@ -174,7 +174,8 @@ export function E2ESimulator() {
       const sessionB = Session.initAsBob(
         sharedSecretB,
         deviceB.signedPreKey.privateKey,
-        deviceB.signedPreKey.publicKey
+        deviceB.signedPreKey.publicKey,
+        x3dhResultA.ephemeralPublicKey
       );
       deviceB.session = sessionB;
 

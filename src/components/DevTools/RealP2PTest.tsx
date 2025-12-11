@@ -220,7 +220,8 @@ export function RealP2PTest() {
       const session = Session.initAsBob(
         sharedSecret,
         signedPreKey.privateKey,
-        signedPreKey.publicKey
+        signedPreKey.publicKey,
+        ephemeralPubKey
       );
       wasmRef.current.session = session;
 

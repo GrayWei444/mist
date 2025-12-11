@@ -287,11 +287,12 @@ export function useCrypto() {
         senderEphemeralPublic
       );
 
-      // 建立 Double Ratchet 會話
+      // 建立 Double Ratchet 會話（傳入 Alice 的臨時公鑰以支援雙向通訊）
       const session = Session.initAsBob(
         sharedSecret,
         signedPreKey.privateKey,
-        signedPreKey.publicKey
+        signedPreKey.publicKey,
+        senderEphemeralPublic
       );
 
       // 儲存會話

@@ -390,15 +390,17 @@ export class Session {
 
   /**
    * 接收者建立會話 (Bob)
+   * @param remoteEphemeralPublic - Alice 的臨時公鑰，用於衍生發送鏈金鑰（雙向通訊）
    */
   static initAsBob(
     sharedSecret: Uint8Array,
     signedPrekeyPrivate: Uint8Array,
-    signedPrekeyPublic: Uint8Array
+    signedPrekeyPublic: Uint8Array,
+    remoteEphemeralPublic: Uint8Array
   ): Session {
     ensureInitialized();
     return new Session(
-      RatchetSession.initAsBob(sharedSecret, signedPrekeyPrivate, signedPrekeyPublic)
+      RatchetSession.initAsBob(sharedSecret, signedPrekeyPrivate, signedPrekeyPublic, remoteEphemeralPublic)
     );
   }
 
