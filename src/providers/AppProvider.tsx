@@ -56,6 +56,20 @@ interface AppContextValue extends AppState {
   // 加解密操作
   encryptMessage: (recipientPublicKey: string, plaintext: string) => unknown;
   decryptMessage: (senderPublicKey: string, ciphertext: unknown) => string;
+
+  // 會話管理
+  createSession: (
+    recipientIdentityPublic: Uint8Array,
+    recipientSignedPrekeyPublic: Uint8Array,
+    recipientSignedPrekeySignature: Uint8Array,
+    recipientOneTimePrekeyPublic?: Uint8Array,
+    recipientOneTimePrekeyId?: number
+  ) => { session: unknown; x3dhResult: { sharedSecret: Uint8Array; ephemeralPublicKey: Uint8Array; usedOneTimePrekeyId?: number } };
+  acceptSession: (
+    senderIdentityPublic: Uint8Array,
+    senderEphemeralPublic: Uint8Array,
+    usedOneTimePrekeyId?: number
+  ) => unknown;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -78,6 +92,8 @@ export function AppProvider({ children }: AppProviderProps) {
     getPreKeyBundle,
     encrypt,
     decrypt,
+    acceptSession,
+    createSession,
   } = useCrypto();
 
   // MQTT Hook - 需要 publicKey 參數
@@ -244,6 +260,10 @@ export function AppProvider({ children }: AppProviderProps) {
     // 加解密
     encryptMessage,
     decryptMessage,
+
+    // 會話管理
+    createSession,
+    acceptSession,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

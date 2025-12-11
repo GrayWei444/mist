@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { FriendList } from '../components/FriendList/FriendList';
 import { ChatRoom } from '../components/ChatRoom/ChatRoom';
 import { useChatStore } from '../stores/chatStore';
-import { useCrypto } from '../hooks/useCrypto';
+import { useApp } from '../providers/AppProvider';
 import { mqttService, MessageType, ConnectionState } from '../services/mqtt';
+import { fromBase64 } from '../services/crypto';
 
 interface ChatAppProps {
   onBackToDisguise: () => void;
@@ -17,28 +18,28 @@ interface X3DHInitPayload {
 
 export function ChatApp({ onBackToDisguise }: ChatAppProps) {
   const { currentFriendId, clearSelection } = useChatStore();
-  const { isInitialized, hasIdentity, generateIdentity, loading, identity } = useCrypto();
+  const { cryptoReady, hasIdentity, generateIdentity, publicKey, isInitializing, acceptSession } = useApp();
   const [isMobile, setIsMobile] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
   // 自動生成身份（首次使用時）
   useEffect(() => {
-    if (isInitialized && !hasIdentity && !loading && !isGenerating) {
+    if (cryptoReady && !hasIdentity && !isInitializing && !isGenerating) {
       setIsGenerating(true);
       try {
-        const publicKey = generateIdentity();
-        console.log('[ChatApp] Generated new identity:', publicKey.slice(0, 20) + '...');
+        const newPubKey = generateIdentity();
+        console.log('[ChatApp] Generated new identity:', newPubKey.slice(0, 20) + '...');
       } catch (err) {
         console.error('[ChatApp] Failed to generate identity:', err);
       } finally {
         setIsGenerating(false);
       }
     }
-  }, [isInitialized, hasIdentity, loading, isGenerating, generateIdentity]);
+  }, [cryptoReady, hasIdentity, isInitializing, isGenerating, generateIdentity]);
 
   // MQTT 連接與 X3DH_INIT 監聽（接收好友添加請求）
   useEffect(() => {
-    if (!identity?.publicKeyBase64) return;
+    if (!publicKey) return;
 
     let isMounted = true;
     let unsubscribeX3dh: (() => void) | null = null;
@@ -49,8 +50,8 @@ export function ChatApp({ onBackToDisguise }: ChatAppProps) {
         // 連接 MQTT (如果尚未連接)
         if (mqttService.getState() !== ConnectionState.CONNECTED) {
           console.log('[ChatApp] Connecting to MQTT...');
-          console.log('[ChatApp] My public key:', identity.publicKeyBase64.slice(0, 20) + '...');
-          await mqttService.connect(identity.publicKeyBase64);
+          console.log('[ChatApp] My public key:', publicKey.slice(0, 20) + '...');
+          await mqttService.connect(publicKey);
           console.log('[ChatApp] MQTT connected successfully');
         } else {
           console.log('[ChatApp] MQTT already connected');
@@ -67,7 +68,7 @@ export function ChatApp({ onBackToDisguise }: ChatAppProps) {
           });
         });
 
-        // 監聽 X3DH_INIT 訊息（有人掃描了我的 QR Code）
+        // 監聯 X3DH_INIT 訊息（有人掃描了我的 QR Code）
         unsubscribeX3dh = mqttService.onMessage(MessageType.X3DH_INIT, (msg) => {
           const senderPk = msg.from;
           const payload = msg.payload as X3DHInitPayload;
@@ -84,6 +85,17 @@ export function ChatApp({ onBackToDisguise }: ChatAppProps) {
           if (existingFriend) {
             console.log('[ChatApp] Already friends with:', existingFriend.name);
             return;
+          }
+
+          try {
+            // 執行 X3DH (作為接收者) - 建立 Double Ratchet 會話
+            const senderIdentityPubKey = fromBase64(senderPk);
+            const senderEphemeralPubKey = fromBase64(payload.ephemeralPublicKey);
+
+            acceptSession(senderIdentityPubKey, senderEphemeralPubKey);
+            console.log('[ChatApp] ✅ Session established with:', senderPk.slice(0, 16) + '...');
+          } catch (err) {
+            console.error('[ChatApp] Failed to accept session:', err);
           }
 
           // 添加為好友
@@ -105,7 +117,7 @@ export function ChatApp({ onBackToDisguise }: ChatAppProps) {
       if (unsubscribeX3dh) unsubscribeX3dh();
       if (unsubscribeAll) unsubscribeAll();
     };
-  }, [identity?.publicKeyBase64]); // 只依賴 publicKeyBase64
+  }, [publicKey, acceptSession]); // 依賴 publicKey 和 acceptSession
 
   // Responsive breakpoint detection
   useEffect(() => {
@@ -118,12 +130,12 @@ export function ChatApp({ onBackToDisguise }: ChatAppProps) {
   }, []);
 
   // 顯示載入中畫面
-  if (loading || isGenerating || !hasIdentity) {
+  if (isInitializing || isGenerating || !hasIdentity) {
     return (
       <div className="h-screen bg-dark-bg flex flex-col items-center justify-center">
         <div className="w-16 h-16 border-4 border-mist-500 border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-dark-400">
-          {loading ? '初始化加密模組...' : '正在生成您的身份金鑰...'}
+          {isInitializing ? '初始化加密模組...' : '正在生成您的身份金鑰...'}
         </p>
         <p className="text-dark-500 text-sm mt-2">首次使用需要幾秒鐘</p>
       </div>

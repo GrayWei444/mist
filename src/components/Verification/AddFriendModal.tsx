@@ -9,13 +9,9 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { QRCodeVerification } from './QRCodeVerification';
 import { InviteLink } from './InviteLink';
 import { mqttService, MessageType, ConnectionState } from '../../services/mqtt';
-import { useCrypto } from '../../hooks/useCrypto';
+import { useApp } from '../../providers/AppProvider';
 import { useChatStore } from '../../stores/chatStore';
-import {
-  x3dhInitiator,
-  toBase64,
-  fromBase64,
-} from '../../services/crypto';
+import { toBase64, fromBase64 } from '../../services/crypto';
 
 type TabType = 'scan' | 'myqr' | 'invite';
 
@@ -54,12 +50,12 @@ export function AddFriendModal({
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = 'qr-scanner-modal';
 
-  const { identity, isInitialized } = useCrypto();
+  const { publicKey, cryptoReady, createSession } = useApp();
   const { addFriend } = useChatStore();
 
   // 處理掃描到的 QR Code
   const handleQrScanned = useCallback(async (qrText: string) => {
-    if (!identity) {
+    if (!publicKey) {
       setScanError('身份未初始化');
       setScanStatus('error');
       return;
@@ -80,22 +76,23 @@ export function AddFriendModal({
       // 連接 MQTT (如果尚未連接)
       if (mqttService.getState() !== ConnectionState.CONNECTED) {
         setStatusMessage('正在連接伺服器...');
-        await mqttService.connect(identity.publicKeyBase64);
+        await mqttService.connect(publicKey);
       }
 
       setStatusMessage('正在進行金鑰交換...');
 
-      // 執行 X3DH (作為發起者)
+      // 執行 X3DH (作為發起者) - 使用 AppProvider 的 createSession
       const peerIdentityPubKey = fromBase64(peerQr.pk);
       const peerSignedPreKeyPub = fromBase64(peerQr.spk);
       const peerSignature = fromBase64(peerQr.sig);
 
-      const x3dhResult = x3dhInitiator(
-        identity,
+      const { x3dhResult } = createSession(
         peerIdentityPubKey,
         peerSignedPreKeyPub,
         peerSignature
       );
+
+      console.log('[AddFriendModal] Session created with peer:', peerQr.pk.slice(0, 16) + '...');
 
       // 透過 MQTT 發送 X3DH 初始化訊息
       const initPayload: X3DHInitPayload = {
@@ -124,7 +121,7 @@ export function AddFriendModal({
       setScanStatus('error');
       setStatusMessage(errorMsg);
     }
-  }, [identity, addFriend, onFriendAdded, onClose]);
+  }, [publicKey, createSession, addFriend, onFriendAdded, onClose]);
 
   // 開始掃描
   const startScanning = useCallback(async () => {
@@ -329,7 +326,7 @@ export function AddFriendModal({
               </div>
 
               {/* 控制按鈕 */}
-              {!isInitialized ? (
+              {!cryptoReady ? (
                 <div className="text-center text-dark-400">
                   <div className="w-8 h-8 border-2 border-dark-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                   <p className="text-sm">正在初始化加密模組...</p>
