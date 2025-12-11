@@ -32,13 +32,13 @@ export default defineConfig({
         start_url: '/mist/',
         icons: [
           {
-            src: '/favicon.svg',
+            src: 'favicon.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any',
           },
           {
-            src: '/favicon.svg',
+            src: 'favicon.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'maskable',
