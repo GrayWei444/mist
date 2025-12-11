@@ -64,10 +64,15 @@ function App() {
     setMode('devtools');
   };
 
+  // 從 DevTools 直接進入聊天（不重置數據，保留機器人）
+  const enterChatFromDevTools = useCallback(() => {
+    setMode('chat');
+  }, []);
+
   // 根據模式渲染不同頁面
   switch (mode) {
     case 'devtools':
-      return <DevToolsPage onBack={exitToDisguise} />;
+      return <DevToolsPage onBack={exitToDisguise} onEnterChat={enterChatFromDevTools} />;
     case 'chat':
       return <ChatApp onBackToDisguise={exitChat} />;
     case 'disguise':

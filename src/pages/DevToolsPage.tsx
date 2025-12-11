@@ -7,11 +7,12 @@ import { E2ESimulator, LiveTestPanel, QRCodeExchange } from '../components/DevTo
 
 interface DevToolsPageProps {
   onBack: () => void;
+  onEnterChat?: () => void;
 }
 
 type TabType = 'live' | 'qr' | 'simulator';
 
-export function DevToolsPage({ onBack }: DevToolsPageProps) {
+export function DevToolsPage({ onBack, onEnterChat }: DevToolsPageProps) {
   const [activeTab, setActiveTab] = useState<TabType>('live');
 
   return (
@@ -63,7 +64,7 @@ export function DevToolsPage({ onBack }: DevToolsPageProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'live' && <LiveTestPanel />}
+        {activeTab === 'live' && <LiveTestPanel onEnterChat={onEnterChat} />}
         {activeTab === 'qr' && <QRCodeExchange />}
         {activeTab === 'simulator' && <E2ESimulator />}
       </div>

@@ -25,7 +25,11 @@ import { useBotStore, botWasmState } from '../../stores/botStore';
 // 追蹤已處理的訊息 ID，避免重複回覆
 let lastProcessedMessageId: string | null = null;
 
-export function LiveTestPanel() {
+interface LiveTestPanelProps {
+  onEnterChat?: () => void;
+}
+
+export function LiveTestPanel({ onEnterChat }: LiveTestPanelProps) {
   const { addFriend, friends, messages } = useChatStore();
   const { bot, logs, addLog, clearLogs, initializeBot: storeBotInit, establishSession: storeEstablish, reset: resetBotStore } = useBotStore();
 
@@ -49,7 +53,8 @@ export function LiveTestPanel() {
     const lastMessage = botMessages[botMessages.length - 1];
 
     // 只處理用戶發送的新訊息（避免重複處理）
-    if (lastMessage && lastMessage.senderId === 'self' && lastMessage.id !== lastProcessedMessageId) {
+    // 注意：chatStore 中用戶發送的訊息 senderId 是 'me'
+    if (lastMessage && lastMessage.senderId === 'me' && lastMessage.id !== lastProcessedMessageId) {
       lastProcessedMessageId = lastMessage.id;
       addLog(`收到用戶訊息: "${lastMessage.content}"`);
 
@@ -251,18 +256,27 @@ export function LiveTestPanel() {
         </div>
       )}
 
-      {/* 使用說明 */}
+      {/* 使用說明 + 進入聊天按鈕 */}
       {bot.isSessionEstablished && isAdded && (
         <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3 mb-4">
           <p className="text-sm text-green-400">
-            ✅ 機器人運行中！現在可以：
+            ✅ 機器人運行中！
           </p>
-          <ol className="text-sm text-green-300/80 mt-2 ml-4 list-decimal space-y-1">
-            <li>返回主畫面（點左上角 ←）</li>
-            <li>長按太陽 ☀️ 進入聊天</li>
-            <li>選擇「Bot Alice 🤖」</li>
-            <li>發送訊息，機器人會自動回覆！</li>
-          </ol>
+          {onEnterChat ? (
+            <button
+              onClick={onEnterChat}
+              className="w-full mt-3 px-4 py-3 bg-gradient-to-r from-green-600 to-mist-600 hover:from-green-700 hover:to-mist-700 text-white rounded-lg transition-all text-sm font-medium"
+            >
+              💬 進入聊天，與 Bot Alice 對話
+            </button>
+          ) : (
+            <ol className="text-sm text-green-300/80 mt-2 ml-4 list-decimal space-y-1">
+              <li>返回主畫面（點左上角 ←）</li>
+              <li>長按太陽 ☀️ 進入聊天</li>
+              <li>選擇「Bot Alice 🤖」</li>
+              <li>發送訊息，機器人會自動回覆！</li>
+            </ol>
+          )}
           <p className="text-xs text-green-500/60 mt-3">
             💡 機器人會持續運行，即使離開此頁面
           </p>
