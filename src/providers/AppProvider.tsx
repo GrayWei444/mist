@@ -81,7 +81,7 @@ export function AppProvider({ children }: AppProviderProps) {
   } = useCrypto();
 
   // MQTT Hook - 需要 publicKey 參數
-  const mqtt = useMqtt(publicKey, { autoConnect: false, isDev: true });
+  const mqtt = useMqtt(publicKey, { autoConnect: false, isDev: false });
 
   // WebRTC 訊息處理
   const handleWebRTCMessage = useCallback((peerPublicKey: string, data: ArrayBuffer | string) => {
