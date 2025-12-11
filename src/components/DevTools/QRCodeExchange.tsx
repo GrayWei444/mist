@@ -9,7 +9,7 @@
  * 5. 雙方成為好友，可以加密通訊
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   initCrypto,
@@ -178,8 +178,15 @@ export function QRCodeExchange() {
     setStep('qr-generated');
     addLog('');
     addLog('📲 Alice 的 QR Code 已產生');
-    addLog('💡 Bob 可以掃描此 QR Code 來加好友');
+    addLog('💡 點擊「掃描」按鈕模擬 Bob 掃描 QR Code');
   }, [generateIdentity, addLog]);
+
+  // 自動初始化
+  useEffect(() => {
+    if (step === 'init') {
+      setupBothDevices();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 模擬 Bob 掃描 Alice 的 QR Code
   const scanQRCode = useCallback(async () => {
@@ -387,39 +394,32 @@ export function QRCodeExchange() {
 
       {/* 步驟指示器 */}
       <div className="flex items-center gap-2 mb-4 text-xs">
-        <div className={`px-2 py-1 rounded ${step === 'init' ? 'bg-mist-600 text-white' : 'bg-dark-600 text-dark-400'}`}>
-          1. 初始化
+        <div className={`px-2 py-1 rounded ${step === 'init' ? 'bg-yellow-600 text-white animate-pulse' : step === 'qr-generated' || step === 'scanned' || step === 'connected' ? 'bg-green-600 text-white' : 'bg-dark-600 text-dark-400'}`}>
+          {step === 'init' ? '⏳ 初始化中...' : '✅ 已初始化'}
         </div>
         <span className="text-dark-500">→</span>
-        <div className={`px-2 py-1 rounded ${step === 'qr-generated' ? 'bg-mist-600 text-white' : 'bg-dark-600 text-dark-400'}`}>
-          2. 產生 QR
-        </div>
-        <span className="text-dark-500">→</span>
-        <div className={`px-2 py-1 rounded ${step === 'scanned' ? 'bg-mist-600 text-white' : 'bg-dark-600 text-dark-400'}`}>
-          3. 掃描
+        <div className={`px-2 py-1 rounded ${step === 'qr-generated' ? 'bg-mist-600 text-white' : step === 'scanned' || step === 'connected' ? 'bg-green-600 text-white' : 'bg-dark-600 text-dark-400'}`}>
+          {step === 'scanned' || step === 'connected' ? '✅ 已掃描' : '📷 掃描 QR'}
         </div>
         <span className="text-dark-500">→</span>
         <div className={`px-2 py-1 rounded ${step === 'connected' ? 'bg-green-600 text-white' : 'bg-dark-600 text-dark-400'}`}>
-          4. 已連線
+          {step === 'connected' ? '🔐 已連線' : '等待連線'}
         </div>
       </div>
 
       {/* 操作按鈕 */}
       <div className="flex gap-2 mb-4">
         {step === 'init' && (
-          <button
-            onClick={setupBothDevices}
-            className="px-4 py-2 bg-gradient-to-r from-mist-600 to-purple-600 hover:from-mist-700 hover:to-purple-700 text-white rounded-lg text-sm font-medium"
-          >
-            🚀 初始化雙方設備
-          </button>
+          <div className="px-4 py-2 bg-dark-600 text-dark-400 rounded-lg text-sm">
+            ⏳ 正在初始化加密模組...
+          </div>
         )}
         {step === 'qr-generated' && (
           <button
             onClick={scanQRCode}
-            className="px-4 py-2 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white rounded-lg text-sm font-medium animate-pulse"
           >
-            📷 Bob 掃描 QR Code
+            📷 點擊這裡：Bob 掃描 QR Code
           </button>
         )}
         <button
