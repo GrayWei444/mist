@@ -197,6 +197,10 @@ export class SignedPreKey {
     return this.keyPair.publicKeyBase64();
   }
 
+  get signatureBase64(): string {
+    return toBase64(this.signature);
+  }
+
   get privateKey(): Uint8Array {
     return this.keyPair.privateKeyBytes();
   }

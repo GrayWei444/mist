@@ -2,11 +2,21 @@
  * QRCodeVerification - QR Code 好友驗證元件
  *
  * 用於面對面驗證好友身份，產生和顯示驗證 QR Code
+ * 使用 X3DH 格式：包含 IdentityKey + SignedPreKey
  */
 
-import { useState, useEffect } from 'react';
-import { useVerification } from '@hooks/useVerification';
+import { useState, useEffect, useCallback } from 'react';
 import { useCrypto } from '@hooks/useCrypto';
+import QRCode from 'qrcode';
+
+// QR Code 資料結構 (與 AddFriendModal 掃描格式一致)
+interface QRCodeData {
+  v: number;      // 版本號
+  pk: string;     // Ed25519 公鑰 (Base64)
+  spk: string;    // SignedPreKey 公鑰 (Base64)
+  sig: string;    // SignedPreKey 簽名 (Base64)
+  name: string;   // 用戶名稱
+}
 
 interface QRCodeVerificationProps {
   onVerified?: (publicKey: string, verificationCode: string) => void;
@@ -17,26 +27,65 @@ export function QRCodeVerification({
   onVerified: _onVerified,
   onError,
 }: QRCodeVerificationProps) {
-  const {
-    qrCode,
-    verificationCode,
-    isGeneratingQR,
-    error,
-    generateQRCode,
-    clearQRCode,
-    clearError,
-  } = useVerification();
+  const { identity, signedPreKey, isInitialized } = useCrypto();
 
-  const { identity, isInitialized } = useCrypto();
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(300); // 5 分鐘
   const [isExpired, setIsExpired] = useState(false);
 
-  // 產生 QR Code
-  useEffect(() => {
-    if (isInitialized && identity && !qrCode && !isGeneratingQR) {
-      generateQRCode(identity, 280);
+  // 產生 QR Code (X3DH 格式)
+  const generateQR = useCallback(async () => {
+    if (!identity || !signedPreKey) {
+      setError('身份或金鑰未初始化');
+      return;
     }
-  }, [isInitialized, identity, qrCode, isGeneratingQR, generateQRCode]);
+
+    setIsGeneratingQR(true);
+    setError(null);
+
+    try {
+      // 建立 X3DH 格式的 QR 資料
+      const qrData: QRCodeData = {
+        v: 1,
+        pk: identity.publicKeyBase64,
+        spk: signedPreKey.publicKeyBase64,
+        sig: signedPreKey.signatureBase64,
+        name: '我', // TODO: 可讓用戶自訂名稱
+      };
+
+      const jsonData = JSON.stringify(qrData);
+
+      // 產生 QR Code
+      const qrCodeDataUrl = await QRCode.toDataURL(jsonData, {
+        width: 280,
+        margin: 2,
+        color: {
+          dark: '#A855F7', // Mist 紫色
+          light: '#FFFFFF',
+        },
+        errorCorrectionLevel: 'M',
+      });
+
+      setQrCode(qrCodeDataUrl);
+      setCountdown(300);
+      setIsExpired(false);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : '產生 QR Code 失敗';
+      setError(errorMsg);
+      onError?.(errorMsg);
+    } finally {
+      setIsGeneratingQR(false);
+    }
+  }, [identity, signedPreKey, onError]);
+
+  // 自動產生 QR Code
+  useEffect(() => {
+    if (isInitialized && identity && signedPreKey && !qrCode && !isGeneratingQR) {
+      generateQR();
+    }
+  }, [isInitialized, identity, signedPreKey, qrCode, isGeneratingQR, generateQR]);
 
   // 倒數計時
   useEffect(() => {
@@ -56,21 +105,9 @@ export function QRCodeVerification({
     return () => clearInterval(timer);
   }, [qrCode]);
 
-  // 錯誤通知
-  useEffect(() => {
-    if (error && onError) {
-      onError(error);
-    }
-  }, [error, onError]);
-
   const handleRefresh = async () => {
-    if (!identity) return;
-
-    clearQRCode();
-    clearError();
-    setIsExpired(false);
-    setCountdown(300);
-    await generateQRCode(identity, 280);
+    setQrCode(null);
+    await generateQR();
   };
 
   const formatTime = (seconds: number): string => {
@@ -152,23 +189,13 @@ export function QRCodeVerification({
         )}
       </div>
 
-      {/* 驗證碼 */}
-      {verificationCode && !isExpired && (
+      {/* 公鑰縮寫顯示 */}
+      {identity && !isExpired && (
         <div className="text-center">
-          <p className="text-sm text-dark-400 mb-2">驗證碼</p>
-          <div className="flex items-center gap-1 justify-center">
-            {verificationCode.split('').map((digit, i) => (
-              <span
-                key={i}
-                className="w-10 h-12 flex items-center justify-center bg-dark-700 rounded-lg text-2xl font-mono text-mist-400"
-              >
-                {digit}
-              </span>
-            ))}
-          </div>
-          <p className="text-xs text-dark-500 mt-2">
-            請確認對方顯示相同的驗證碼
-          </p>
+          <p className="text-sm text-dark-400 mb-2">我的 ID</p>
+          <code className="px-4 py-2 bg-dark-700 rounded-lg text-sm font-mono text-mist-400">
+            {identity.publicKeyBase64.slice(0, 12)}...{identity.publicKeyBase64.slice(-8)}
+          </code>
         </div>
       )}
 

@@ -379,6 +379,7 @@ export function useCrypto() {
     version: state.version,
     hasIdentity: !!state.identity,
     identity: state.identity, // 暴露完整身份物件 (用於驗證簽章)
+    signedPreKey: state.signedPreKey, // 暴露 SignedPreKey (用於 QR Code)
     publicKeyBase64: state.identity?.publicKeyBase64 ?? null,
 
     // 金鑰管理

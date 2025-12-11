@@ -40,7 +40,9 @@
       "Bash(timeout /t 15 /nobreak)",
       "Bash(\"C:/Program Files/GitHub CLI/gh.exe\" run list --repo GrayWei444/mist --limit 2)",
       "Bash(del \"c:\\Users\\wg444\\safetalk\\src\\services\\simulatedPeer.ts\")",
-      "Bash(timeout /t 3 /nobreak)"
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(git checkout:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
