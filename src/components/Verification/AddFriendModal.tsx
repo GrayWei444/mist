@@ -139,22 +139,29 @@ export function AddFriendModal({
       await scanner.start(
         { facingMode: 'environment' },
         {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
+          fps: 15,
+          qrbox: { width: 200, height: 200 },
+          aspectRatio: 1,
         },
         (decodedText) => {
           // 掃描成功，停止掃描並處理
+          console.log('[Scanner] QR Code detected:', decodedText.slice(0, 50) + '...');
           stopScanning();
           handleQrScanned(decodedText);
         },
-        () => {
-          // 掃描中
+        (errorMessage) => {
+          // 掃描中 - 只在特定錯誤時輸出
+          if (!errorMessage.includes('No QR code found')) {
+            console.log('[Scanner] Scanning:', errorMessage);
+          }
         }
       );
 
       setIsScanning(true);
+      console.log('[Scanner] Camera started successfully');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '無法開啟相機';
+      console.error('[Scanner] Failed to start camera:', err);
       setScanError(errorMsg);
       setScanStatus('error');
       setStatusMessage(errorMsg);
