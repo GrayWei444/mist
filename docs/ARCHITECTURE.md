@@ -653,37 +653,38 @@ const TURN_SERVER = {
 
 ## 11. 開發路線圖
 
-### Phase 0: 技術驗證 ✅ 完成
+> **注意**：Phase 編號已與 FUTURE_ROADMAP.md 統一
+
+### Phase 1: 基礎建設 ✅ 完成
 
 - [x] Docker 環境部署 (Caddy + EMQX + Coturn)
 - [x] React + Vite + TailwindCSS 專案建立
 - [x] Rust WASM 整合
 - [x] VPS 防火牆配置
-
-### Phase 1: 基礎通訊 ✅ 大部分完成
-
 - [x] 本機公私鑰生成
 - [x] MQTT 連線與重連機制
-- [x] 1 對 1 WebRTC 文字傳輸
 - [x] 基本聊天 UI
 - [x] PIN 認證畫面
 - [x] 身份自動生成
 - [x] 身份卡 UI（顯示公鑰）
 
-### Phase 2: 安全與信任 🔄 進行中
+### Phase 2: 端對端加密 ✅ 完成
 
 - [x] QR Code 掃描與公鑰交換 (X3DH 格式統一)
 - [x] X3DH 金鑰交換實作 (Rust WASM)
 - [x] Double Ratchet 加密協定實作 (Rust WASM)
-- [x] 端對端加密訊息傳輸
+- [x] 端對端加密訊息傳輸 (雙向驗證通過)
 - [x] sql.js 加密儲存 (IndexedDB 持久化)
 - [x] Session 版本遷移機制
+
+### Phase 3: 信任與驗證 🔄 進行中
+
 - [ ] 一次性邀請連結功能
-- [ ] 分層信任機制（已驗證/未驗證）
+- [ ] 分層信任機制（已驗證 🟢 / 未驗證 🟡）
 - [ ] 驗證升級流程
 - [ ] WebAuthn 生物辨識
 
-### Phase 3: 高級功能
+### Phase 4: 高級功能
 
 - [ ] 訊息生命週期控制（TTL + 閱後即焚）
 - [ ] 遠端刪除指令
@@ -691,9 +692,17 @@ const TURN_SERVER = {
 - [ ] 群組檔案 Mesh 傳輸
 - [ ] 模糊保護 UI
 
-### Phase 4: 商業化
+### Phase 5: 商業化
 
 - [ ] Web Push 通知
-- [ ] 金流串接
+- [ ] 金流串接（綠界 + LemonSqueezy）
 - [ ] iOS Safari PWA 優化
 - [ ] 正式上線
+
+### Phase 6+: 進階功能
+
+- [ ] 好友 5000+ 支援
+- [ ] 巢狀群組
+- [ ] SafeTalk 企業版
+
+> 詳細規劃請參考 [FUTURE_ROADMAP.md](FUTURE_ROADMAP.md)
