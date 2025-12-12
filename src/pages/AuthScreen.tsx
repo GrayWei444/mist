@@ -8,22 +8,27 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { authService } from '../services/auth';
+import { useChatStore } from '../stores/chatStore';
 
 interface AuthScreenProps {
   onSuccess: () => void;
   onBack: () => void;
 }
 
-type AuthMode = 'loading' | 'setup' | 'confirm' | 'verify';
+type AuthMode = 'loading' | 'setup' | 'confirm' | 'name' | 'verify';
 
 export function AuthScreen({ onSuccess, onBack }: AuthScreenProps) {
   const [mode, setMode] = useState<AuthMode>('loading');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const { setDisplayName: saveDisplayName, userProfile } = useChatStore();
 
   const PIN_LENGTH = 6;
   const MAX_ATTEMPTS = 5;
@@ -40,7 +45,9 @@ export function AuthScreen({ onSuccess, onBack }: AuthScreenProps) {
 
   // 自動聚焦輸入框
   useEffect(() => {
-    if (mode !== 'loading') {
+    if (mode === 'name') {
+      nameInputRef.current?.focus();
+    } else if (mode !== 'loading') {
       inputRef.current?.focus();
     }
   }, [mode]);
@@ -83,11 +90,28 @@ export function AuthScreen({ onSuccess, onBack }: AuthScreenProps) {
 
     try {
       await authService.setPin(pin);
-      onSuccess();
+      // 進入名稱設定
+      setMode('name');
+      setError('');
     } catch (err) {
       setError('設定失敗，請重試');
     }
-  }, [pin, confirmPin, onSuccess]);
+  }, [pin, confirmPin]);
+
+  // 處理名稱設定
+  const handleNameSubmit = useCallback(() => {
+    const trimmedName = displayName.trim();
+    if (!trimmedName) {
+      setError('請輸入您的名稱');
+      return;
+    }
+    if (trimmedName.length > 20) {
+      setError('名稱不能超過 20 個字');
+      return;
+    }
+    saveDisplayName(trimmedName);
+    onSuccess();
+  }, [displayName, saveDisplayName, onSuccess]);
 
   // 處理驗證 PIN
   const handleVerify = useCallback(async () => {
@@ -125,7 +149,10 @@ export function AuthScreen({ onSuccess, onBack }: AuthScreenProps) {
 
   // 返回上一步
   const handleBack = useCallback(() => {
-    if (mode === 'confirm') {
+    if (mode === 'name') {
+      // 名稱設定不能返回，只能完成
+      return;
+    } else if (mode === 'confirm') {
       setMode('setup');
       setConfirmPin('');
       setError('');
@@ -222,6 +249,67 @@ export function AuthScreen({ onSuccess, onBack }: AuthScreenProps) {
         >
           返回
         </button>
+      </div>
+    );
+  }
+
+  // 名稱設定頁面
+  if (mode === 'name') {
+    return (
+      <div className="min-h-screen bg-dark-bg flex flex-col">
+        {/* Content */}
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          {/* Icon */}
+          <div className="w-20 h-20 rounded-full bg-mist-500/20 flex items-center justify-center mb-8">
+            <svg className="w-10 h-10 text-mist-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+
+          {/* Title */}
+          <h1 className="text-2xl font-semibold text-white mb-2">設定您的名稱</h1>
+          <p className="text-dark-400 mb-8 text-center">
+            這個名稱會在加好友時顯示給對方
+          </p>
+
+          {/* Name Input */}
+          <div className="w-full max-w-xs mb-6">
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={displayName}
+              onChange={(e) => {
+                setDisplayName(e.target.value);
+                setError('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleNameSubmit();
+                }
+              }}
+              placeholder="輸入您的名稱"
+              maxLength={20}
+              className="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white text-center text-lg placeholder:text-dark-500 focus:outline-none focus:border-mist-500 transition-colors"
+            />
+            <p className="text-dark-500 text-xs text-center mt-2">
+              {displayName.length}/20 字
+            </p>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <p className="text-red-400 text-sm mb-4">{error}</p>
+          )}
+
+          {/* Submit Button */}
+          <button
+            onClick={handleNameSubmit}
+            disabled={!displayName.trim()}
+            className="px-8 py-3 bg-gradient-to-r from-mist-600 to-purple-600 hover:from-mist-700 hover:to-purple-700 disabled:from-dark-600 disabled:to-dark-600 text-white rounded-xl font-medium transition-all disabled:cursor-not-allowed"
+          >
+            完成設定
+          </button>
+        </div>
       </div>
     );
   }

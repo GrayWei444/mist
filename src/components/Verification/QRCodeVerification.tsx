@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useCrypto } from '@hooks/useCrypto';
+import { useChatStore } from '@stores/chatStore';
 import QRCode from 'qrcode';
 
 // QR Code 資料結構 (與 AddFriendModal 掃描格式一致)
@@ -28,6 +29,7 @@ export function QRCodeVerification({
   onError,
 }: QRCodeVerificationProps) {
   const { identity, signedPreKey, isInitialized } = useCrypto();
+  const displayName = useChatStore((state) => state.userProfile.displayName);
 
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isGeneratingQR, setIsGeneratingQR] = useState(false);
@@ -52,7 +54,7 @@ export function QRCodeVerification({
         pk: identity.publicKeyBase64,
         spk: signedPreKey.publicKeyBase64,
         sig: signedPreKey.signatureBase64,
-        name: '我', // TODO: 可讓用戶自訂名稱
+        name: displayName || `用戶 ${identity.publicKeyBase64.slice(0, 6)}`,
       };
 
       const jsonData = JSON.stringify(qrData);
@@ -62,7 +64,7 @@ export function QRCodeVerification({
         width: 280,
         margin: 2,
         color: {
-          dark: '#A855F7', // Mist 紫色
+          dark: '#000000', // 黑色，提高掃描成功率
           light: '#FFFFFF',
         },
         errorCorrectionLevel: 'M',
@@ -78,7 +80,7 @@ export function QRCodeVerification({
     } finally {
       setIsGeneratingQR(false);
     }
-  }, [identity, signedPreKey, onError]);
+  }, [identity, signedPreKey, displayName, onError]);
 
   // 自動產生 QR Code
   useEffect(() => {

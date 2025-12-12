@@ -2,12 +2,20 @@ import { create } from 'zustand';
 import type { Friend, Message, TrustLevel } from '../types';
 import * as storage from '../services/storage';
 
+// 用戶設定儲存 key
+const USER_PROFILE_KEY = 'mist_user_profile';
+
+interface UserProfile {
+  displayName: string;
+}
+
 interface ChatState {
   friends: Friend[];
   currentFriendId: string | null;
   messages: Record<string, Message[]>;
   isDisguiseMode: boolean;
   isLoaded: boolean; // 是否已從本地載入
+  userProfile: UserProfile;
 
   // Actions
   selectFriend: (friendId: string) => void;
@@ -19,6 +27,9 @@ interface ChatState {
   resetAll: () => void;
   loadFromStorage: () => void;
 
+  // 用戶設定
+  setDisplayName: (name: string) => void;
+
   // 新增好友操作
   addFriend: (publicKey: string, name: string, trustLevel: TrustLevel, avatar?: string) => void;
   updateFriendTrust: (friendId: string, trustLevel: TrustLevel) => void;
@@ -29,12 +40,43 @@ interface ChatState {
   receiveMessage: (friendId: string, message: Message) => void;
 }
 
+// 從 localStorage 載入用戶設定
+function loadUserProfile(): UserProfile {
+  try {
+    const saved = localStorage.getItem(USER_PROFILE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('[chatStore] Failed to load user profile:', e);
+  }
+  return { displayName: '' };
+}
+
+// 保存用戶設定到 localStorage
+function saveUserProfile(profile: UserProfile): void {
+  try {
+    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+  } catch (e) {
+    console.error('[chatStore] Failed to save user profile:', e);
+  }
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   friends: [],
   currentFriendId: null,
   messages: {},
   isDisguiseMode: true,
   isLoaded: false,
+  userProfile: loadUserProfile(),
+
+  // 設定用戶名稱
+  setDisplayName: (name: string) => {
+    const newProfile = { ...get().userProfile, displayName: name };
+    saveUserProfile(newProfile);
+    set({ userProfile: newProfile });
+    console.log('[chatStore] Display name updated:', name);
+  },
 
   // 從本地儲存載入資料
   loadFromStorage: () => {

@@ -51,7 +51,7 @@ export function AddFriendModal({
   const scannerContainerId = 'qr-scanner-modal';
 
   const { publicKey, cryptoReady, createSession } = useApp();
-  const { addFriend } = useChatStore();
+  const { addFriend, userProfile } = useChatStore();
 
   // 處理掃描到的 QR Code
   const handleQrScanned = useCallback(async (qrText: string) => {
@@ -97,7 +97,7 @@ export function AddFriendModal({
       // 透過 MQTT 發送 X3DH 初始化訊息
       const initPayload: X3DHInitPayload = {
         ephemeralPublicKey: toBase64(x3dhResult.ephemeralPublicKey),
-        senderName: '我', // TODO: 使用用戶設定的名稱
+        senderName: userProfile.displayName || `用戶 ${publicKey.slice(0, 6)}`,
       };
       mqttService.sendToUser(peerQr.pk, MessageType.X3DH_INIT, initPayload);
 
@@ -121,7 +121,7 @@ export function AddFriendModal({
       setScanStatus('error');
       setStatusMessage(errorMsg);
     }
-  }, [publicKey, createSession, addFriend, onFriendAdded, onClose]);
+  }, [publicKey, createSession, addFriend, userProfile, onFriendAdded, onClose]);
 
   // 開始掃描
   const startScanning = useCallback(async () => {
