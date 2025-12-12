@@ -9,6 +9,7 @@ import { useCallback } from 'react';
 import { useApp } from '../providers/AppProvider';
 import { useChatStore } from '../stores/chatStore';
 import { MessageType } from '../services/mqtt';
+import type { RatchetMessage } from '../services/crypto';
 
 interface UseChatOptions {
   onError?: (error: string) => void;
@@ -62,8 +63,11 @@ export function useChat(options: UseChatOptions = {}) {
           timestamp: Date.now(),
         };
 
-        // 加密訊息
-        const encrypted = encryptMessage(currentFriend.publicKey, JSON.stringify(messageData));
+        // 加密訊息 (返回 RatchetMessage WASM 物件)
+        const encrypted = encryptMessage(currentFriend.publicKey, JSON.stringify(messageData)) as RatchetMessage;
+
+        // 序列化 RatchetMessage 為 JSON 字串以便透過網路傳輸
+        const serializedMessage = encrypted.toJson();
 
         // 檢查是否有 P2P 連線
         const hasPeerConnection = isConnectedTo(currentFriend.publicKey);
@@ -72,16 +76,16 @@ export function useChat(options: UseChatOptions = {}) {
           // 透過 WebRTC 發送
           const sent = sendToPeer(currentFriend.publicKey, JSON.stringify({
             type: 'encrypted_message',
-            payload: encrypted,
+            payload: serializedMessage,
           }));
 
           if (!sent) {
             // P2P 失敗，改用 MQTT
-            sendToUser(currentFriend.publicKey, MessageType.ENCRYPTED_MESSAGE, encrypted);
+            sendToUser(currentFriend.publicKey, MessageType.ENCRYPTED_MESSAGE, serializedMessage);
           }
         } else {
           // 透過 MQTT 發送
-          sendToUser(currentFriend.publicKey, MessageType.ENCRYPTED_MESSAGE, encrypted);
+          sendToUser(currentFriend.publicKey, MessageType.ENCRYPTED_MESSAGE, serializedMessage);
         }
 
         // 儲存到本地 store（顯示已發送）

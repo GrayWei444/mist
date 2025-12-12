@@ -17,7 +17,7 @@ import { useMqtt } from '@hooks/useMqtt';
 import { useWebRTC } from '@hooks/useWebRTC';
 import { MessageType, type MqttMessage } from '@services/mqtt';
 import { initStorage, isInitialized as isStorageInitialized, startCleanupTask } from '@services/storage';
-import { fromBase64 } from '@services/crypto';
+import { fromBase64, RatchetMessage } from '@services/crypto';
 import { useChatStore } from '@stores/chatStore';
 
 // 應用狀態
@@ -248,8 +248,11 @@ export function AppProvider({ children }: AppProviderProps) {
           return;
         }
 
+        // payload 是 JSON 字串 (來自 RatchetMessage.toJson())，需要先反序列化為 WASM 物件
+        const ratchetMessage = RatchetMessage.fromJson(payload as string);
+
         // 解密訊息
-        const decrypted = decrypt(senderPublicKeyBase64, payload as Parameters<typeof decrypt>[1]);
+        const decrypted = decrypt(senderPublicKeyBase64, ratchetMessage);
         const messageData = JSON.parse(decrypted) as {
           content: string;
           type: 'text' | 'image' | 'file';

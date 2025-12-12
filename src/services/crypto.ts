@@ -28,9 +28,11 @@ import init, {
 export type {
   X3DHSenderOutput,
   X3DHInitialMessage,
-  RatchetMessage,
   EncryptedMessage,
 };
+
+// Re-export RatchetMessage class (需要 fromJson 靜態方法)
+export { RatchetMessage };
 
 // WASM 初始化狀態
 let wasmInitialized = false;
