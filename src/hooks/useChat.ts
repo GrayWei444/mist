@@ -2,16 +2,15 @@
  * useChat Hook - 加密聊天整合
  *
  * 整合 AppProvider 和 chatStore，提供加密訊息收發功能
+ * 注意：訊息接收由 AppProvider 全域處理，此 Hook 主要負責發送
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { useApp } from '../providers/AppProvider';
 import { useChatStore } from '../stores/chatStore';
 import { MessageType } from '../services/mqtt';
-import type { Message } from '../types';
 
 interface UseChatOptions {
-  onMessageReceived?: (message: Message, senderPublicKey: string) => void;
   onError?: (error: string) => void;
 }
 
@@ -19,16 +18,14 @@ interface UseChatOptions {
  * 加密聊天 Hook
  */
 export function useChat(options: UseChatOptions = {}) {
-  const { onMessageReceived, onError } = options;
+  const { onError } = options;
 
   const {
     publicKey,
     cryptoReady,
     mqttConnected,
     encryptMessage,
-    decryptMessage,
     sendToUser,
-    subscribeMessage,
     connectPeer,
     sendToPeer,
     isConnectedTo,
@@ -39,81 +36,12 @@ export function useChat(options: UseChatOptions = {}) {
     currentFriendId,
     messages,
     sendMessage: storeSendMessage,
-    receiveMessage: storeReceiveMessage,
-    getFriendByPublicKey,
   } = useChatStore();
-
-  const subscriptionRef = useRef<(() => void) | null>(null);
 
   // 取得當前好友
   const currentFriend = friends.find((f) => f.id === currentFriendId);
 
-  // 訂閱 MQTT 訊息
-  useEffect(() => {
-    if (!mqttConnected || !publicKey) return;
-
-    // 訂閱加密訊息
-    const unsubscribe = subscribeMessage(MessageType.ENCRYPTED_MESSAGE, (mqttMessage) => {
-      try {
-        const { from: senderPublicKey, payload } = mqttMessage;
-
-        // 檢查發送者是否為好友
-        const friend = getFriendByPublicKey(senderPublicKey);
-        if (!friend) {
-          console.log('[useChat] Received message from unknown sender:', senderPublicKey.slice(0, 16));
-          return;
-        }
-
-        // 解密訊息
-        const decrypted = decryptMessage(senderPublicKey, payload);
-        const messageData = JSON.parse(decrypted) as {
-          content: string;
-          type: 'text' | 'image' | 'file';
-          ttl?: number;
-        };
-
-        // 建立訊息物件
-        const message: Message = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          senderId: friend.id,
-          content: messageData.content,
-          timestamp: Date.now(),
-          type: messageData.type,
-          isRead: false,
-          isBurned: false,
-          ttl: messageData.ttl,
-          encrypted: true,
-        };
-
-        // 儲存到 store
-        storeReceiveMessage(friend.id, message);
-
-        // 觸發回調
-        onMessageReceived?.(message, senderPublicKey);
-
-        console.log('[useChat] Received encrypted message from:', friend.name);
-      } catch (err) {
-        console.error('[useChat] Failed to process message:', err);
-        onError?.(err instanceof Error ? err.message : 'Failed to process message');
-      }
-    });
-
-    subscriptionRef.current = unsubscribe;
-
-    return () => {
-      unsubscribe();
-      subscriptionRef.current = null;
-    };
-  }, [
-    mqttConnected,
-    publicKey,
-    subscribeMessage,
-    decryptMessage,
-    getFriendByPublicKey,
-    storeReceiveMessage,
-    onMessageReceived,
-    onError,
-  ]);
+  // 訊息接收由 AppProvider 全域處理，不需要在這裡訂閱
 
   /**
    * 發送加密訊息

@@ -17,6 +17,8 @@ import { useMqtt } from '@hooks/useMqtt';
 import { useWebRTC } from '@hooks/useWebRTC';
 import { MessageType, type MqttMessage } from '@services/mqtt';
 import { initStorage, isInitialized as isStorageInitialized, startCleanupTask } from '@services/storage';
+import { fromBase64 } from '@services/crypto';
+import { useChatStore } from '@stores/chatStore';
 
 // 應用狀態
 interface AppState {
@@ -125,6 +127,10 @@ export function AppProvider({ children }: AppProviderProps) {
     },
   });
 
+  // 從 chatStore 取得 addFriend 方法
+  const addFriend = useChatStore((state) => state.addFriend);
+  const getFriendByPublicKey = useChatStore((state) => state.getFriendByPublicKey);
+
   // 初始化流程
   useEffect(() => {
     const init = async () => {
@@ -171,6 +177,112 @@ export function AppProvider({ children }: AppProviderProps) {
 
     init();
   }, [cryptoReady, hasIdentity, publicKey, mqtt.isConnected, generateIdentity, mqtt.connect]);
+
+  // 從 chatStore 取得 receiveMessage 方法
+  const receiveMessage = useChatStore((state) => state.receiveMessage);
+
+  // 監聽 X3DH_INIT 訊息 - 接收端建立 session
+  useEffect(() => {
+    if (!mqtt.isConnected || !cryptoReady) return;
+
+    console.log('[AppProvider] Setting up X3DH_INIT listener...');
+
+    const unsubscribe = mqtt.subscribe(MessageType.X3DH_INIT, (message: MqttMessage) => {
+      try {
+        const senderPublicKeyBase64 = message.from;
+        const payload = message.payload as {
+          ephemeralPublicKey: string;
+          senderName: string;
+        };
+
+        console.log('[AppProvider] Received X3DH_INIT from:', senderPublicKeyBase64.slice(0, 16) + '...');
+        console.log('[AppProvider] Sender name:', payload.senderName);
+
+        // 檢查是否已經是好友（已有 session）
+        const existingFriend = getFriendByPublicKey(senderPublicKeyBase64);
+        if (existingFriend) {
+          console.log('[AppProvider] Already have this friend, updating session...');
+        }
+
+        // 將 Base64 轉換為 Uint8Array
+        const senderIdentityPublic = fromBase64(senderPublicKeyBase64);
+        const senderEphemeralPublic = fromBase64(payload.ephemeralPublicKey);
+
+        // 建立接收端的 session
+        acceptSession(senderIdentityPublic, senderEphemeralPublic);
+
+        console.log('[AppProvider] Session created for:', senderPublicKeyBase64.slice(0, 16) + '...');
+
+        // 如果不是好友，將發送者加入好友列表
+        if (!existingFriend) {
+          addFriend(senderPublicKeyBase64, payload.senderName, 'verified');
+          console.log('[AppProvider] Added new friend:', payload.senderName);
+        }
+      } catch (err) {
+        console.error('[AppProvider] Failed to process X3DH_INIT:', err);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [mqtt.isConnected, mqtt.subscribe, cryptoReady, acceptSession, addFriend, getFriendByPublicKey]);
+
+  // 全域監聽 ENCRYPTED_MESSAGE - 確保訊息在任何頁面都能接收
+  useEffect(() => {
+    if (!mqtt.isConnected || !cryptoReady) return;
+
+    console.log('[AppProvider] Setting up global ENCRYPTED_MESSAGE listener...');
+
+    const unsubscribe = mqtt.subscribe(MessageType.ENCRYPTED_MESSAGE, (message: MqttMessage) => {
+      try {
+        const senderPublicKeyBase64 = message.from;
+        const payload = message.payload;
+
+        console.log('[AppProvider] Received ENCRYPTED_MESSAGE from:', senderPublicKeyBase64.slice(0, 16) + '...');
+
+        // 檢查發送者是否為好友
+        const friend = getFriendByPublicKey(senderPublicKeyBase64);
+        if (!friend) {
+          console.log('[AppProvider] Message from unknown sender, ignoring');
+          return;
+        }
+
+        // 解密訊息
+        const decrypted = decrypt(senderPublicKeyBase64, payload as Parameters<typeof decrypt>[1]);
+        const messageData = JSON.parse(decrypted) as {
+          content: string;
+          type: 'text' | 'image' | 'file';
+          ttl?: number;
+          timestamp?: number;
+        };
+
+        console.log('[AppProvider] Decrypted message from:', friend.name);
+
+        // 建立訊息物件並儲存到 store
+        const newMessage = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          senderId: friend.id,
+          content: messageData.content,
+          timestamp: messageData.timestamp || Date.now(),
+          type: messageData.type,
+          isRead: false,
+          isBurned: false,
+          ttl: messageData.ttl,
+          encrypted: true,
+        };
+
+        receiveMessage(friend.id, newMessage);
+        console.log('[AppProvider] Message saved to store');
+      } catch (err) {
+        console.error('[AppProvider] Failed to process ENCRYPTED_MESSAGE:', err);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [mqtt.isConnected, mqtt.subscribe, cryptoReady, decrypt, getFriendByPublicKey, receiveMessage]);
 
   // MQTT 連線
   const connectMqtt = useCallback(async () => {
