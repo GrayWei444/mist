@@ -28,7 +28,7 @@ export function AuthScreen({ onSuccess, onBack }: AuthScreenProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  const { setDisplayName: saveDisplayName, userProfile } = useChatStore();
+  const { setDisplayName: saveDisplayName } = useChatStore();
 
   const PIN_LENGTH = 6;
   const MAX_ATTEMPTS = 5;
