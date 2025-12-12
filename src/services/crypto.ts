@@ -299,6 +299,7 @@ export function createPreKeyBundle(data: PreKeyBundleData): string {
 export interface X3DHResult {
   sharedSecret: Uint8Array;
   ephemeralPublicKey: Uint8Array;
+  ephemeralPrivateKey: Uint8Array;
   usedOneTimePrekeyId?: number;
 }
 
@@ -327,6 +328,7 @@ export function x3dhInitiator(
   return {
     sharedSecret: output.sharedSecret,
     ephemeralPublicKey: output.ephemeralPublicKey,
+    ephemeralPrivateKey: output.ephemeralPrivateKey,
     usedOneTimePrekeyId: output.usedOneTimePrekeyId,
   };
 }
@@ -384,10 +386,21 @@ export class Session {
 
   /**
    * 發起者建立會話 (Alice)
+   * @param sharedSecret - X3DH 產生的共享密鑰
+   * @param remotePublicKey - Bob 的 Signed PreKey 公鑰
+   * @param ephemeralPrivateKey - Alice 的 X3DH 臨時私鑰
+   * @param ephemeralPublicKey - Alice 的 X3DH 臨時公鑰
    */
-  static initAsAlice(sharedSecret: Uint8Array, remotePublicKey: Uint8Array): Session {
+  static initAsAlice(
+    sharedSecret: Uint8Array,
+    remotePublicKey: Uint8Array,
+    ephemeralPrivateKey: Uint8Array,
+    ephemeralPublicKey: Uint8Array
+  ): Session {
     ensureInitialized();
-    return new Session(RatchetSession.initAsAlice(sharedSecret, remotePublicKey));
+    return new Session(
+      RatchetSession.initAsAlice(sharedSecret, remotePublicKey, ephemeralPrivateKey, ephemeralPublicKey)
+    );
   }
 
   /**

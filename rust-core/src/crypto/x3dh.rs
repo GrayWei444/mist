@@ -22,6 +22,8 @@ pub struct X3DHSenderOutput {
     shared_secret: Vec<u8>,
     /// 臨時公鑰 (發送給對方)
     ephemeral_public_key: Vec<u8>,
+    /// 臨時私鑰 (用於 Double Ratchet 初始化)
+    ephemeral_private_key: Vec<u8>,
     /// 使用的一次性預金鑰 ID (如有)
     used_one_time_prekey_id: Option<u32>,
 }
@@ -36,6 +38,11 @@ impl X3DHSenderOutput {
     #[wasm_bindgen(getter, js_name = ephemeralPublicKey)]
     pub fn ephemeral_public_key(&self) -> Vec<u8> {
         self.ephemeral_public_key.clone()
+    }
+
+    #[wasm_bindgen(getter, js_name = ephemeralPrivateKey)]
+    pub fn ephemeral_private_key(&self) -> Vec<u8> {
+        self.ephemeral_private_key.clone()
     }
 
     #[wasm_bindgen(getter, js_name = usedOneTimePrekeyId)]
@@ -117,6 +124,22 @@ impl X3DH {
         recipient_one_time_prekey_public: Option<Vec<u8>>,
         recipient_one_time_prekey_id: Option<u32>,
     ) -> Result<X3DHSenderOutput, JsError> {
+        // Debug: log key lengths and first bytes
+        web_sys::console::log_1(&format!(
+            "[X3DH Initiator] sender_id_priv len={}, recipient_id_pub len={}, recipient_spk_pub len={}",
+            sender_identity_private.len(),
+            recipient_identity_public.len(),
+            recipient_signed_prekey_public.len()
+        ).into());
+        web_sys::console::log_1(&format!(
+            "[X3DH Initiator] recipient_id_pub[:8]={:?}",
+            &recipient_identity_public[..8.min(recipient_identity_public.len())]
+        ).into());
+        web_sys::console::log_1(&format!(
+            "[X3DH Initiator] recipient_spk_pub[:8]={:?}",
+            &recipient_signed_prekey_public[..8.min(recipient_signed_prekey_public.len())]
+        ).into());
+
         // 驗證簽章
         if !Self::verify_signed_prekey(
             recipient_identity_public,
@@ -166,9 +189,20 @@ impl X3DH {
         // 使用 HKDF 導出最終密鑰
         let shared_secret = Self::kdf(&dh_concat)?;
 
+        // Debug: log shared secret
+        web_sys::console::log_1(&format!(
+            "[X3DH Initiator] shared_secret[:8]={:?}",
+            &shared_secret[..8]
+        ).into());
+        web_sys::console::log_1(&format!(
+            "[X3DH Initiator] ephemeral_pub[:8]={:?}",
+            &ephemeral.public_key_bytes()[..8]
+        ).into());
+
         Ok(X3DHSenderOutput {
             shared_secret,
             ephemeral_public_key: ephemeral.public_key_bytes(),
+            ephemeral_private_key: ephemeral.private_key_bytes(),
             used_one_time_prekey_id: used_otpk_id,
         })
     }
@@ -182,6 +216,23 @@ impl X3DH {
         sender_identity_public: &[u8],
         sender_ephemeral_public: &[u8],
     ) -> Result<Vec<u8>, JsError> {
+        // Debug: log key lengths and first bytes
+        web_sys::console::log_1(&format!(
+            "[X3DH Responder] recipient_id_priv len={}, recipient_spk_priv len={}, sender_id_pub len={}, sender_eph_pub len={}",
+            recipient_identity_private.len(),
+            recipient_signed_prekey_private.len(),
+            sender_identity_public.len(),
+            sender_ephemeral_public.len()
+        ).into());
+        web_sys::console::log_1(&format!(
+            "[X3DH Responder] sender_id_pub[:8]={:?}",
+            &sender_identity_public[..8.min(sender_identity_public.len())]
+        ).into());
+        web_sys::console::log_1(&format!(
+            "[X3DH Responder] sender_eph_pub[:8]={:?}",
+            &sender_ephemeral_public[..8.min(sender_ephemeral_public.len())]
+        ).into());
+
         // 轉換金鑰
         let recipient_x25519 = Self::ed25519_to_x25519_private(recipient_identity_private)?;
         let recipient_spk = X25519SecretKey::from(Self::vec_to_32(recipient_signed_prekey_private)?);
@@ -213,7 +264,15 @@ impl X3DH {
         }
 
         // 使用 HKDF 導出最終密鑰
-        Self::kdf(&dh_concat)
+        let shared_secret = Self::kdf(&dh_concat)?;
+
+        // Debug: log shared secret
+        web_sys::console::log_1(&format!(
+            "[X3DH Responder] shared_secret[:8]={:?}",
+            &shared_secret[..8]
+        ).into());
+
+        Ok(shared_secret)
     }
 
     /// 建立初始訊息
@@ -345,6 +404,7 @@ pub fn sign_pre_key(identity_private: &[u8], prekey_public: &[u8]) -> Result<Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::keys::IdentityKeyPair;
 
     #[test]
     fn test_x3dh_key_exchange() {
@@ -383,5 +443,125 @@ mod tests {
 
         // 驗證雙方得到相同的共享密鑰
         assert_eq!(alice_output.shared_secret, bob_shared);
+    }
+
+    #[test]
+    fn test_x3dh_without_otp() {
+        // 測試沒有 OneTimePreKey 的情況（真實 App 流程）
+        let alice_identity = IdentityKeyPair::new();
+        let bob_identity = IdentityKeyPair::new();
+        let bob_signed_prekey = X25519KeyPair::new();
+
+        // Bob 簽署預金鑰
+        let bob_spk_signature = sign_pre_key(
+            &bob_identity.private_key_bytes(),
+            &bob_signed_prekey.public_key_bytes(),
+        ).unwrap();
+
+        // Alice 計算（沒有 OTP）
+        let alice_output = X3DH::initiator_calculate(
+            &alice_identity.private_key_bytes(),
+            &bob_identity.public_key_bytes(),
+            &bob_signed_prekey.public_key_bytes(),
+            &bob_spk_signature,
+            None,  // 沒有 OTP
+            None,
+        ).unwrap();
+
+        // Bob 計算（沒有 OTP）
+        let bob_shared = X3DH::responder_calculate(
+            &bob_identity.private_key_bytes(),
+            &bob_signed_prekey.private_key_bytes(),
+            None,  // 沒有 OTP
+            &alice_identity.public_key_bytes(),
+            &alice_output.ephemeral_public_key,
+        ).unwrap();
+
+        // 驗證共享密鑰相同
+        assert_eq!(alice_output.shared_secret, bob_shared);
+        println!("X3DH without OTP: shared secrets match!");
+    }
+
+    #[test]
+    fn test_ed25519_to_x25519_conversion_consistency() {
+        // 驗證 Ed25519 私鑰轉 X25519 後，計算出的公鑰與直接轉換 Ed25519 公鑰相同
+        use x25519_dalek::PublicKey as X25519PublicKey;
+
+        let identity = IdentityKeyPair::new();
+
+        // 方法 1: Ed25519 私鑰 -> X25519 私鑰 -> X25519 公鑰
+        let x25519_private = X3DH::ed25519_to_x25519_private(&identity.private_key_bytes()).unwrap();
+        let x25519_public_from_private = X25519PublicKey::from(&x25519_private);
+
+        // 方法 2: Ed25519 公鑰 -> X25519 公鑰
+        let x25519_public_from_ed_public = X3DH::ed25519_to_x25519_public(&identity.public_key_bytes()).unwrap();
+
+        // 這兩個應該相同
+        println!("From private: {:?}", x25519_public_from_private.as_bytes());
+        println!("From public:  {:?}", x25519_public_from_ed_public.as_bytes());
+
+        assert_eq!(
+            x25519_public_from_private.as_bytes(),
+            x25519_public_from_ed_public.as_bytes(),
+            "Ed25519 to X25519 conversion inconsistency!"
+        );
+    }
+
+    #[test]
+    fn test_full_encryption_flow() {
+        use super::super::ratchet::RatchetSession;
+
+        // 模擬完整的加密流程
+        let alice_identity = IdentityKeyPair::new();
+        let bob_identity = IdentityKeyPair::new();
+        let bob_signed_prekey = X25519KeyPair::new();
+
+        let bob_spk_signature = sign_pre_key(
+            &bob_identity.private_key_bytes(),
+            &bob_signed_prekey.public_key_bytes(),
+        ).unwrap();
+
+        // X3DH
+        let alice_x3dh = X3DH::initiator_calculate(
+            &alice_identity.private_key_bytes(),
+            &bob_identity.public_key_bytes(),
+            &bob_signed_prekey.public_key_bytes(),
+            &bob_spk_signature,
+            None,
+            None,
+        ).unwrap();
+
+        let bob_shared = X3DH::responder_calculate(
+            &bob_identity.private_key_bytes(),
+            &bob_signed_prekey.private_key_bytes(),
+            None,
+            &alice_identity.public_key_bytes(),
+            &alice_x3dh.ephemeral_public_key,
+        ).unwrap();
+
+        println!("Alice shared: {:?}", &alice_x3dh.shared_secret[..8]);
+        println!("Bob shared:   {:?}", &bob_shared[..8]);
+        assert_eq!(alice_x3dh.shared_secret, bob_shared, "X3DH shared secrets don't match!");
+
+        // Double Ratchet
+        let mut alice_session = RatchetSession::init_as_alice(
+            &alice_x3dh.shared_secret,
+            &bob_signed_prekey.public_key_bytes(),
+            &alice_x3dh.ephemeral_private_key,
+            &alice_x3dh.ephemeral_public_key,
+        ).unwrap();
+
+        let mut bob_session = RatchetSession::init_as_bob(
+            &bob_shared,
+            &bob_signed_prekey.private_key_bytes(),
+            &bob_signed_prekey.public_key_bytes(),
+            &alice_x3dh.ephemeral_public_key,
+        ).unwrap();
+
+        // Alice 發送給 Bob
+        let msg = alice_session.encrypt(b"Hello from Alice!").unwrap();
+        let decrypted = bob_session.decrypt(&msg).unwrap();
+        assert_eq!(decrypted, b"Hello from Alice!");
+        println!("Full flow test passed!");
     }
 }

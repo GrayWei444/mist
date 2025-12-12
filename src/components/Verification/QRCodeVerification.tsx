@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useCrypto } from '@hooks/useCrypto';
+import { useApp } from '../../providers/AppProvider';
 import { useChatStore } from '@stores/chatStore';
 import QRCode from 'qrcode';
 
@@ -28,7 +28,7 @@ export function QRCodeVerification({
   onVerified: _onVerified,
   onError,
 }: QRCodeVerificationProps) {
-  const { identity, signedPreKey, isInitialized } = useCrypto();
+  const { publicKey, signedPreKey, cryptoReady } = useApp();
   const displayName = useChatStore((state) => state.userProfile.displayName);
 
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -39,7 +39,7 @@ export function QRCodeVerification({
 
   // 產生 QR Code (X3DH 格式)
   const generateQR = useCallback(async () => {
-    if (!identity || !signedPreKey) {
+    if (!publicKey || !signedPreKey) {
       setError('身份或金鑰未初始化');
       return;
     }
@@ -51,10 +51,10 @@ export function QRCodeVerification({
       // 建立 X3DH 格式的 QR 資料
       const qrData: QRCodeData = {
         v: 1,
-        pk: identity.publicKeyBase64,
+        pk: publicKey,
         spk: signedPreKey.publicKeyBase64,
         sig: signedPreKey.signatureBase64,
-        name: displayName || `用戶 ${identity.publicKeyBase64.slice(0, 6)}`,
+        name: displayName || `用戶 ${publicKey.slice(0, 6)}`,
       };
 
       const jsonData = JSON.stringify(qrData);
@@ -80,14 +80,14 @@ export function QRCodeVerification({
     } finally {
       setIsGeneratingQR(false);
     }
-  }, [identity, signedPreKey, displayName, onError]);
+  }, [publicKey, signedPreKey, displayName, onError]);
 
   // 自動產生 QR Code
   useEffect(() => {
-    if (isInitialized && identity && signedPreKey && !qrCode && !isGeneratingQR) {
+    if (cryptoReady && publicKey && signedPreKey && !qrCode && !isGeneratingQR) {
       generateQR();
     }
-  }, [isInitialized, identity, signedPreKey, qrCode, isGeneratingQR, generateQR]);
+  }, [cryptoReady, publicKey, signedPreKey, qrCode, isGeneratingQR, generateQR]);
 
   // 倒數計時
   useEffect(() => {
@@ -119,7 +119,7 @@ export function QRCodeVerification({
   };
 
   // 載入中
-  if (!isInitialized || isGeneratingQR) {
+  if (!cryptoReady || isGeneratingQR) {
     return (
       <div className="flex flex-col items-center gap-4 p-6">
         <div className="w-12 h-12 border-4 border-mist-500 border-t-transparent rounded-full animate-spin" />
@@ -192,11 +192,11 @@ export function QRCodeVerification({
       </div>
 
       {/* 公鑰縮寫顯示 */}
-      {identity && !isExpired && (
+      {publicKey && !isExpired && (
         <div className="text-center">
           <p className="text-sm text-dark-400 mb-2">我的 ID</p>
           <code className="px-4 py-2 bg-dark-700 rounded-lg text-sm font-mono text-mist-400">
-            {identity.publicKeyBase64.slice(0, 12)}...{identity.publicKeyBase64.slice(-8)}
+            {publicKey.slice(0, 12)}...{publicKey.slice(-8)}
           </code>
         </div>
       )}

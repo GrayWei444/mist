@@ -43,6 +43,12 @@ interface AppState {
 
 // Context 值
 interface AppContextValue extends AppState {
+  // Crypto 金鑰 (用於 QR Code 產生)
+  signedPreKey: {
+    publicKeyBase64: string;
+    signatureBase64: string;
+  } | null;
+
   // Crypto 操作
   generateIdentity: () => string;
   getPreKeyBundle: () => string | null;
@@ -95,6 +101,7 @@ export function AppProvider({ children }: AppProviderProps) {
     initialized: cryptoReady,
     hasIdentity,
     publicKeyBase64: publicKey,
+    signedPreKey,
     generateIdentity,
     getPreKeyBundle,
     encrypt,
@@ -142,10 +149,13 @@ export function AppProvider({ children }: AppProviderProps) {
         if (!isStorageInitialized()) {
           console.log('[AppProvider] Initializing storage...');
           await initStorage();
-          setStorageReady(true);
           startCleanupTask(); // 啟動過期訊息清理任務
           console.log('[AppProvider] Storage initialized');
+        } else {
+          console.log('[AppProvider] Storage already initialized');
         }
+        // 無論是新初始化還是已存在，都設為 ready
+        setStorageReady(true);
 
         // 等待 Crypto 初始化
         if (!cryptoReady) {
@@ -376,6 +386,12 @@ export function AppProvider({ children }: AppProviderProps) {
     activePeers,
     isInitializing,
     error,
+
+    // Crypto 金鑰
+    signedPreKey: signedPreKey ? {
+      publicKeyBase64: signedPreKey.publicKeyBase64,
+      signatureBase64: signedPreKey.signatureBase64,
+    } : null,
 
     // Crypto 操作
     generateIdentity,

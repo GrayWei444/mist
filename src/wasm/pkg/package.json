@@ -1,0 +1,19 @@
+{
+  "name": "safetalk-core",
+  "type": "module",
+  "collaborators": [
+    "SafeTalk Team"
+  ],
+  "description": "SafeTalk E2EE Core Library",
+  "version": "0.1.0",
+  "files": [
+    "safetalk_core_bg.wasm",
+    "safetalk_core.js",
+    "safetalk_core.d.ts"
+  ],
+  "main": "safetalk_core.js",
+  "types": "safetalk_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

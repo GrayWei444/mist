@@ -1,0 +1,388 @@
+/* tslint:disable */
+/* eslint-disable */
+
+export class AesGcmCipher {
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * 從金鑰建立加密器
+   */
+  constructor(key: Uint8Array);
+  /**
+   * 加密訊息
+   */
+  encrypt(plaintext: Uint8Array): EncryptedMessage;
+  /**
+   * 加密訊息 (附帶關聯資料)
+   */
+  encryptWithAad(plaintext: Uint8Array, aad: Uint8Array): EncryptedMessage;
+  /**
+   * 解密訊息
+   */
+  decrypt(encrypted: EncryptedMessage): Uint8Array;
+  /**
+   * 解密訊息 (附帶關聯資料)
+   */
+  decryptWithAad(encrypted: EncryptedMessage, aad: Uint8Array): Uint8Array;
+}
+
+export class EncryptedMessage {
+  private constructor();
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * 合併為單一位元組陣列 (nonce || ciphertext)
+   */
+  toBytes(): Uint8Array;
+  /**
+   * 從位元組陣列還原
+   */
+  static fromBytes(bytes: Uint8Array): EncryptedMessage;
+  /**
+   * 序列化為 JSON
+   */
+  toJson(): string;
+  /**
+   * 從 JSON 還原
+   */
+  static fromJson(json: string): EncryptedMessage;
+  /**
+   * 取得密文
+   */
+  readonly ciphertext: Uint8Array;
+  /**
+   * 取得 nonce
+   */
+  readonly nonce: Uint8Array;
+}
+
+export class IdentityKeyPair {
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * 生成新的身份金鑰對
+   */
+  constructor();
+  /**
+   * 從私鑰位元組還原
+   */
+  static fromBytes(bytes: Uint8Array): IdentityKeyPair;
+  /**
+   * 取得公鑰 (Base64)
+   */
+  publicKeyBase64(): string;
+  /**
+   * 取得公鑰位元組
+   */
+  publicKeyBytes(): Uint8Array;
+  /**
+   * 取得私鑰位元組 (敏感！僅用於備份)
+   */
+  privateKeyBytes(): Uint8Array;
+  /**
+   * 簽署訊息
+   */
+  sign(message: Uint8Array): Uint8Array;
+  /**
+   * 驗證簽章
+   */
+  static verifySignature(public_key: Uint8Array, message: Uint8Array, signature: Uint8Array): boolean;
+}
+
+export class RatchetMessage {
+  private constructor();
+  free(): void;
+  [Symbol.dispose](): void;
+  toJson(): string;
+  static fromJson(json: string): RatchetMessage;
+  toBytes(): Uint8Array;
+  static fromBytes(bytes: Uint8Array): RatchetMessage;
+  readonly dhPublic: Uint8Array;
+  readonly prevChainCount: number;
+  readonly messageNumber: number;
+  readonly ciphertext: Uint8Array;
+  readonly nonce: Uint8Array;
+  readonly dhPublicBase64: string;
+}
+
+export class RatchetSession {
+  private constructor();
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * 發起者建立會話 (Alice)
+   *
+   * # 參數
+   * - `shared_secret`: X3DH 產生的共享密鑰
+   * - `remote_public_key`: 接收者的 Signed PreKey 公鑰
+   * - `ephemeral_private_key`: Alice 的 X3DH 臨時私鑰
+   * - `ephemeral_public_key`: Alice 的 X3DH 臨時公鑰
+   */
+  static initAsAlice(shared_secret: Uint8Array, remote_public_key: Uint8Array, ephemeral_private_key: Uint8Array, ephemeral_public_key: Uint8Array): RatchetSession;
+  /**
+   * 接收者建立會話 (Bob)
+   *
+   * # 參數
+   * - `shared_secret`: X3DH 產生的共享密鑰
+   * - `signed_prekey_private`: Bob 的 Signed PreKey 私鑰
+   * - `signed_prekey_public`: Bob 的 Signed PreKey 公鑰
+   * - `remote_ephemeral_public`: Alice 的臨時公鑰 (用於雙向通訊)
+   */
+  static initAsBob(shared_secret: Uint8Array, signed_prekey_private: Uint8Array, signed_prekey_public: Uint8Array, remote_ephemeral_public: Uint8Array): RatchetSession;
+  /**
+   * 加密訊息
+   */
+  encrypt(plaintext: Uint8Array): RatchetMessage;
+  /**
+   * 解密訊息
+   */
+  decrypt(message: RatchetMessage): Uint8Array;
+  /**
+   * 序列化會話狀態
+   */
+  serialize(): Uint8Array;
+  /**
+   * 還原會話狀態
+   */
+  static deserialize(bytes: Uint8Array): RatchetSession;
+  /**
+   * 取得我方當前 DH 公鑰
+   */
+  readonly myPublicKey: Uint8Array;
+  /**
+   * 取得我方當前 DH 公鑰 (Base64)
+   */
+  readonly myPublicKeyBase64: string;
+}
+
+export class X25519KeyPair {
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * 生成新的 X25519 金鑰對
+   */
+  constructor();
+  /**
+   * 從私鑰位元組還原
+   */
+  static fromBytes(bytes: Uint8Array): X25519KeyPair;
+  /**
+   * 取得公鑰 (Base64)
+   */
+  publicKeyBase64(): string;
+  /**
+   * 取得公鑰位元組
+   */
+  publicKeyBytes(): Uint8Array;
+  /**
+   * 取得私鑰位元組 (敏感！)
+   */
+  privateKeyBytes(): Uint8Array;
+  /**
+   * 執行 Diffie-Hellman 金鑰交換
+   */
+  diffieHellman(their_public: Uint8Array): Uint8Array;
+}
+
+export class X3DH {
+  private constructor();
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * 發起者：計算共享密鑰
+   *
+   * # 參數
+   * - `sender_identity`: 發送者的身份金鑰對
+   * - `recipient_bundle`: 接收者的 PreKeyBundle
+   *
+   * # 返回
+   * - X3DHSenderOutput 包含共享密鑰和臨時公鑰
+   */
+  static initiatorCalculate(sender_identity_private: Uint8Array, recipient_identity_public: Uint8Array, recipient_signed_prekey_public: Uint8Array, recipient_signed_prekey_signature: Uint8Array, recipient_one_time_prekey_public?: Uint8Array | null, recipient_one_time_prekey_id?: number | null): X3DHSenderOutput;
+  /**
+   * 接收者：計算共享密鑰
+   */
+  static responderCalculate(recipient_identity_private: Uint8Array, recipient_signed_prekey_private: Uint8Array, recipient_one_time_prekey_private: Uint8Array | null | undefined, sender_identity_public: Uint8Array, sender_ephemeral_public: Uint8Array): Uint8Array;
+  /**
+   * 建立初始訊息
+   */
+  static createInitialMessage(sender_identity_public: Uint8Array, ephemeral_public: Uint8Array, one_time_prekey_id?: number | null): X3DHInitialMessage;
+}
+
+export class X3DHInitialMessage {
+  private constructor();
+  free(): void;
+  [Symbol.dispose](): void;
+  toJson(): string;
+  static fromJson(json: string): X3DHInitialMessage;
+  readonly senderIdentityKey: Uint8Array;
+  readonly ephemeralKey: Uint8Array;
+  readonly oneTimePrekeyId: number | undefined;
+  readonly senderIdentityKeyBase64: string;
+}
+
+export class X3DHSenderOutput {
+  private constructor();
+  free(): void;
+  [Symbol.dispose](): void;
+  toJson(): string;
+  readonly sharedSecret: Uint8Array;
+  readonly ephemeralPublicKey: Uint8Array;
+  readonly ephemeralPrivateKey: Uint8Array;
+  readonly usedOneTimePrekeyId: number | undefined;
+}
+
+/**
+ * 快速解密函式
+ */
+export function aesDecrypt(key: Uint8Array, encrypted: EncryptedMessage): Uint8Array;
+
+/**
+ * 從位元組直接解密
+ */
+export function aesDecryptBytes(key: Uint8Array, encrypted_bytes: Uint8Array): Uint8Array;
+
+/**
+ * 快速加密函式 (不需建立 Cipher 物件)
+ */
+export function aesEncrypt(key: Uint8Array, plaintext: Uint8Array): EncryptedMessage;
+
+/**
+ * Base64 解碼
+ */
+export function base64Decode(data: string): Uint8Array;
+
+/**
+ * Base64 編碼
+ */
+export function base64Encode(data: Uint8Array): string;
+
+/**
+ * WASM 輔助函式：建立 PreKeyBundle JSON
+ */
+export function createPreKeyBundleJson(identity_key: Uint8Array, signed_pre_key_id: number, signed_pre_key_public: Uint8Array, signed_pre_key_signature: Uint8Array, signed_pre_key_timestamp: bigint, one_time_pre_key_id?: number | null, one_time_pre_key_public?: Uint8Array | null): string;
+
+export function init(): void;
+
+/**
+ * 生成隨機位元組
+ */
+export function randomBytes(len: number): Uint8Array;
+
+/**
+ * 簽署預金鑰
+ */
+export function signPreKey(identity_private: Uint8Array, prekey_public: Uint8Array): Uint8Array;
+
+export function version(): string;
+
+export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
+
+export interface InitOutput {
+  readonly memory: WebAssembly.Memory;
+  readonly __wbg_ratchetsession_free: (a: number, b: number) => void;
+  readonly __wbg_ratchetmessage_free: (a: number, b: number) => void;
+  readonly ratchetmessage_dhPublic: (a: number) => [number, number];
+  readonly ratchetmessage_prevChainCount: (a: number) => number;
+  readonly ratchetmessage_messageNumber: (a: number) => number;
+  readonly ratchetmessage_ciphertext: (a: number) => [number, number];
+  readonly ratchetmessage_nonce: (a: number) => [number, number];
+  readonly ratchetmessage_toJson: (a: number) => [number, number, number, number];
+  readonly ratchetmessage_fromJson: (a: number, b: number) => [number, number, number];
+  readonly ratchetmessage_toBytes: (a: number) => [number, number, number, number];
+  readonly ratchetmessage_fromBytes: (a: number, b: number) => [number, number, number];
+  readonly ratchetmessage_dhPublicBase64: (a: number) => [number, number];
+  readonly ratchetsession_initAsAlice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
+  readonly ratchetsession_initAsBob: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
+  readonly ratchetsession_encrypt: (a: number, b: number, c: number) => [number, number, number];
+  readonly ratchetsession_decrypt: (a: number, b: number) => [number, number, number, number];
+  readonly ratchetsession_serialize: (a: number) => [number, number, number, number];
+  readonly ratchetsession_deserialize: (a: number, b: number) => [number, number, number];
+  readonly ratchetsession_myPublicKey: (a: number) => [number, number];
+  readonly ratchetsession_myPublicKeyBase64: (a: number) => [number, number];
+  readonly __wbg_x3dhsenderoutput_free: (a: number, b: number) => void;
+  readonly x3dhsenderoutput_sharedSecret: (a: number) => [number, number];
+  readonly x3dhsenderoutput_ephemeralPublicKey: (a: number) => [number, number];
+  readonly x3dhsenderoutput_ephemeralPrivateKey: (a: number) => [number, number];
+  readonly x3dhsenderoutput_usedOneTimePrekeyId: (a: number) => number;
+  readonly x3dhsenderoutput_toJson: (a: number) => [number, number, number, number];
+  readonly __wbg_x3dhinitialmessage_free: (a: number, b: number) => void;
+  readonly x3dhinitialmessage_senderIdentityKey: (a: number) => [number, number];
+  readonly x3dhinitialmessage_ephemeralKey: (a: number) => [number, number];
+  readonly x3dhinitialmessage_oneTimePrekeyId: (a: number) => number;
+  readonly x3dhinitialmessage_toJson: (a: number) => [number, number, number, number];
+  readonly x3dhinitialmessage_fromJson: (a: number, b: number) => [number, number, number];
+  readonly x3dhinitialmessage_senderIdentityKeyBase64: (a: number) => [number, number];
+  readonly __wbg_x3dh_free: (a: number, b: number) => void;
+  readonly x3dh_initiatorCalculate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
+  readonly x3dh_responderCalculate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
+  readonly x3dh_createInitialMessage: (a: number, b: number, c: number, d: number, e: number) => number;
+  readonly signPreKey: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+  readonly init: () => void;
+  readonly version: () => [number, number];
+  readonly randomBytes: (a: number) => [number, number];
+  readonly base64Encode: (a: number, b: number) => [number, number];
+  readonly base64Decode: (a: number, b: number) => [number, number, number, number];
+  readonly __wbg_identitykeypair_free: (a: number, b: number) => void;
+  readonly identitykeypair_new: () => number;
+  readonly identitykeypair_fromBytes: (a: number, b: number) => [number, number, number];
+  readonly identitykeypair_publicKeyBase64: (a: number) => [number, number];
+  readonly identitykeypair_publicKeyBytes: (a: number) => [number, number];
+  readonly identitykeypair_privateKeyBytes: (a: number) => [number, number];
+  readonly identitykeypair_sign: (a: number, b: number, c: number) => [number, number];
+  readonly identitykeypair_verifySignature: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+  readonly __wbg_x25519keypair_free: (a: number, b: number) => void;
+  readonly x25519keypair_new: () => number;
+  readonly x25519keypair_fromBytes: (a: number, b: number) => [number, number, number];
+  readonly x25519keypair_publicKeyBase64: (a: number) => [number, number];
+  readonly x25519keypair_publicKeyBytes: (a: number) => [number, number];
+  readonly x25519keypair_privateKeyBytes: (a: number) => [number, number];
+  readonly x25519keypair_diffieHellman: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly createPreKeyBundleJson: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number, j: number, k: number) => [number, number, number, number];
+  readonly __wbg_encryptedmessage_free: (a: number, b: number) => void;
+  readonly encryptedmessage_ciphertext: (a: number) => [number, number];
+  readonly encryptedmessage_nonce: (a: number) => [number, number];
+  readonly encryptedmessage_toBytes: (a: number) => [number, number];
+  readonly encryptedmessage_fromBytes: (a: number, b: number) => [number, number, number];
+  readonly encryptedmessage_toJson: (a: number) => [number, number, number, number];
+  readonly encryptedmessage_fromJson: (a: number, b: number) => [number, number, number];
+  readonly __wbg_aesgcmcipher_free: (a: number, b: number) => void;
+  readonly aesgcmcipher_new: (a: number, b: number) => [number, number, number];
+  readonly aesgcmcipher_encrypt: (a: number, b: number, c: number) => [number, number, number];
+  readonly aesgcmcipher_encryptWithAad: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+  readonly aesgcmcipher_decrypt: (a: number, b: number) => [number, number, number, number];
+  readonly aesgcmcipher_decryptWithAad: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+  readonly aesEncrypt: (a: number, b: number, c: number, d: number) => [number, number, number];
+  readonly aesDecrypt: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly aesDecryptBytes: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+  readonly __wbindgen_exn_store: (a: number) => void;
+  readonly __externref_table_alloc: () => number;
+  readonly __wbindgen_externrefs: WebAssembly.Table;
+  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+  readonly __wbindgen_malloc: (a: number, b: number) => number;
+  readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+  readonly __externref_table_dealloc: (a: number) => void;
+  readonly __wbindgen_start: () => void;
+}
+
+export type SyncInitInput = BufferSource | WebAssembly.Module;
+
+/**
+* Instantiates the given `module`, which can either be bytes or
+* a precompiled `WebAssembly.Module`.
+*
+* @param {{ module: SyncInitInput }} module - Passing `SyncInitInput` directly is deprecated.
+*
+* @returns {InitOutput}
+*/
+export function initSync(module: { module: SyncInitInput } | SyncInitInput): InitOutput;
+
+/**
+* If `module_or_path` is {RequestInfo} or {URL}, makes a request and
+* for everything else, calls `WebAssembly.instantiate` directly.
+*
+* @param {{ module_or_path: InitInput | Promise<InitInput> }} module_or_path - Passing `InitInput` directly is deprecated.
+*
+* @returns {Promise<InitOutput>}
+*/
+export default function __wbg_init (module_or_path?: { module_or_path: InitInput | Promise<InitInput> } | InitInput | Promise<InitInput>): Promise<InitOutput>;

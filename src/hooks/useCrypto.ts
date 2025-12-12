@@ -58,6 +58,11 @@ const SESSIONS_STORAGE_KEY = 'mist_sessions';
 // IndexedDB 儲存鍵
 const STORAGE_KEY = 'mist_keys';
 
+// Session 版本 - 當 Double Ratchet 邏輯修改時需要遞增此值
+// v2: 修正 initAsBob chain key 問題
+const SESSION_VERSION = 2;
+const SESSION_VERSION_KEY = 'mist_session_version';
+
 /**
  * 加密功能 Hook
  */
@@ -85,6 +90,15 @@ export function useCrypto() {
 
       // 初始化 WASM
       await initCrypto();
+
+      // 檢查 session 版本，如果版本不符則清除舊的 sessions
+      const storedVersion = localStorage.getItem(SESSION_VERSION_KEY);
+      const currentVersion = SESSION_VERSION.toString();
+      if (storedVersion !== currentVersion) {
+        console.log(`[useCrypto] Session version mismatch: ${storedVersion} -> ${currentVersion}, clearing old sessions`);
+        localStorage.removeItem(SESSIONS_STORAGE_KEY);
+        localStorage.setItem(SESSION_VERSION_KEY, currentVersion);
+      }
 
       // 嘗試從 localStorage 載入已存在的金鑰
       const storedKeys = loadKeys();
@@ -232,10 +246,12 @@ export function useCrypto() {
         recipientOneTimePrekeyId
       );
 
-      // 建立 Double Ratchet 會話
+      // 建立 Double Ratchet 會話 (使用 X3DH 的臨時金鑰對)
       const session = Session.initAsAlice(
         x3dhResult.sharedSecret,
-        recipientSignedPrekeyPublic
+        recipientSignedPrekeyPublic,
+        x3dhResult.ephemeralPrivateKey,
+        x3dhResult.ephemeralPublicKey
       );
 
       // 儲存會話到 ref（同步，立即可用）

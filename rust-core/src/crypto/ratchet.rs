@@ -161,22 +161,59 @@ impl RatchetSession {
     /// # 參數
     /// - `shared_secret`: X3DH 產生的共享密鑰
     /// - `remote_public_key`: 接收者的 Signed PreKey 公鑰
+    /// - `ephemeral_private_key`: Alice 的 X3DH 臨時私鑰
+    /// - `ephemeral_public_key`: Alice 的 X3DH 臨時公鑰
     #[wasm_bindgen(js_name = initAsAlice)]
     pub fn init_as_alice(
         shared_secret: &[u8],
         remote_public_key: &[u8],
+        ephemeral_private_key: &[u8],
+        ephemeral_public_key: &[u8],
     ) -> Result<RatchetSession, JsError> {
         if shared_secret.len() != 32 {
             return Err(JsError::new("Shared secret must be 32 bytes"));
         }
+        if ephemeral_private_key.len() != 32 || ephemeral_public_key.len() != 32 {
+            return Err(JsError::new("Ephemeral keys must be 32 bytes"));
+        }
 
-        let dh_self = DhKeyPair::new();
+        // Debug logging
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsAlice] shared_secret[:8]={:?}",
+            &shared_secret[..8]
+        ).into());
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsAlice] remote_pub (Bob's SPK)[:8]={:?}",
+            &remote_public_key[..8]
+        ).into());
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsAlice] ephemeral_pub[:8]={:?}",
+            &ephemeral_public_key[..8]
+        ).into());
+
+        // 使用 X3DH 的臨時金鑰對，而不是生成新的
+        let dh_self = DhKeyPair {
+            public: ephemeral_public_key.to_vec(),
+            private: ephemeral_private_key.to_vec(),
+        };
 
         // DH 輸出
         let dh_output = dh_self.diffie_hellman(remote_public_key)?;
 
+        // Debug: log DH output
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsAlice] dh_output[:8]={:?}",
+            &dh_output[..8]
+        ).into());
+
         // KDF 產生根金鑰和發送鏈金鑰
         let (root_key, chain_key) = Self::kdf_rk(shared_secret, &dh_output)?;
+
+        // Debug: log chain key
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsAlice] chain_key_send[:8]={:?}",
+            &chain_key[..8]
+        ).into());
 
         Ok(RatchetSession {
             dh_self,
@@ -209,21 +246,50 @@ impl RatchetSession {
             return Err(JsError::new("Shared secret must be 32 bytes"));
         }
 
+        // Debug logging
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsBob] shared_secret[:8]={:?}",
+            &shared_secret[..8]
+        ).into());
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsBob] spk_pub (Bob's SPK)[:8]={:?}",
+            &signed_prekey_public[..8]
+        ).into());
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsBob] remote_eph_pub (Alice's ephemeral)[:8]={:?}",
+            &remote_ephemeral_public[..8]
+        ).into());
+
         let dh_self = DhKeyPair {
             public: signed_prekey_public.to_vec(),
             private: signed_prekey_private.to_vec(),
         };
 
-        // 使用 Alice 的臨時公鑰進行 DH 運算，衍生發送鏈金鑰
+        // 使用 Alice 的臨時公鑰進行 DH 運算，衍生接收鏈金鑰
+        // 注意：Bob 是接收者，需要 chain_key_recv 來解密 Alice 的訊息
+        // Bob 的 chain_key_send 會在他發送第一條訊息時透過 DH ratchet 衍生
         let dh_output = dh_self.diffie_hellman(remote_ephemeral_public)?;
-        let (root_key, chain_key_send) = Self::kdf_rk(shared_secret, &dh_output)?;
+
+        // Debug: log DH output
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsBob] dh_output[:8]={:?}",
+            &dh_output[..8]
+        ).into());
+
+        let (root_key, chain_key_recv) = Self::kdf_rk(shared_secret, &dh_output)?;
+
+        // Debug: log chain key
+        web_sys::console::log_1(&format!(
+            "[Ratchet initAsBob] chain_key_recv[:8]={:?}",
+            &chain_key_recv[..8]
+        ).into());
 
         Ok(RatchetSession {
             dh_self,
             dh_remote: Some(remote_ephemeral_public.to_vec()),
             root_key,
-            chain_key_send: Some(chain_key_send),
-            chain_key_recv: None,
+            chain_key_send: None,  // Bob 尚未發送，會在第一次發送時透過 DH ratchet 衍生
+            chain_key_recv: Some(chain_key_recv),  // Bob 需要這個來接收 Alice 的訊息
             send_count: 0,
             recv_count: 0,
             prev_send_count: 0,
@@ -233,7 +299,26 @@ impl RatchetSession {
 
     /// 加密訊息
     pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<RatchetMessage, JsError> {
-        // 確保有發送鏈金鑰
+        // 如果沒有發送鏈金鑰（例如 Bob 第一次發送），需要先進行 DH ratchet
+        if self.chain_key_send.is_none() {
+            let dh_remote = self.dh_remote.as_ref()
+                .ok_or_else(|| JsError::new("No remote public key for sending ratchet"))?;
+
+            // 生成新的 DH 金鑰對
+            let new_dh = DhKeyPair::new();
+
+            // 計算 DH 輸出並衍生發送鏈金鑰
+            let dh_output = new_dh.diffie_hellman(dh_remote)?;
+            let (root_key, chain_key_send) = Self::kdf_rk(&self.root_key, &dh_output)?;
+
+            // 更新狀態
+            self.root_key = root_key;
+            self.chain_key_send = Some(chain_key_send);
+            self.dh_self = new_dh;
+            self.prev_send_count = self.send_count;
+            self.send_count = 0;
+        }
+
         let chain_key = self.chain_key_send
             .ok_or_else(|| JsError::new("No sending chain key"))?;
 
@@ -456,18 +541,22 @@ mod tests {
     fn test_double_ratchet() {
         let shared_secret = [0u8; 32];
         let bob_spk = X25519KeyPair::new();
+        let alice_ephemeral = X25519KeyPair::new();
 
-        // Alice 初始化
+        // Alice 初始化（使用她的臨時金鑰對）
         let mut alice = RatchetSession::init_as_alice(
             &shared_secret,
             &bob_spk.public_key_bytes(),
+            &alice_ephemeral.private_key_bytes(),
+            &alice_ephemeral.public_key_bytes(),
         ).unwrap();
 
-        // Bob 初始化
+        // Bob 初始化（需要 Alice 的臨時公鑰）
         let mut bob = RatchetSession::init_as_bob(
             &shared_secret,
             &bob_spk.private_key_bytes(),
             &bob_spk.public_key_bytes(),
+            &alice_ephemeral.public_key_bytes(),
         ).unwrap();
 
         // Alice 發送訊息給 Bob
