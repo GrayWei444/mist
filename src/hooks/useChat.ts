@@ -157,7 +157,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         // 儲存到本地 store（顯示已發送）
-        storeSendMessage(content);
+        storeSendMessage(content, publicKey);
 
         console.log('[useChat] Sent encrypted message to:', currentFriend.name, hasPeerConnection ? '(P2P)' : '(MQTT)');
         return true;

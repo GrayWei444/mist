@@ -25,10 +25,18 @@ interface EncryptedMessageData {
 }
 
 export function ChatApp({ onBackToDisguise }: ChatAppProps) {
-  const { currentFriendId, clearSelection } = useChatStore();
-  const { cryptoReady, hasIdentity, generateIdentity, publicKey, isInitializing, acceptSession, decryptMessage } = useApp();
+  const { currentFriendId, clearSelection, loadFromStorage, isLoaded } = useChatStore();
+  const { cryptoReady, hasIdentity, generateIdentity, publicKey, isInitializing, acceptSession, decryptMessage, storageReady } = useApp();
   const [isMobile, setIsMobile] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // 從本地儲存載入資料
+  useEffect(() => {
+    if (storageReady && !isLoaded) {
+      console.log('[ChatApp] Loading data from storage...');
+      loadFromStorage();
+    }
+  }, [storageReady, isLoaded, loadFromStorage]);
 
   // 自動生成身份（首次使用時）
   useEffect(() => {

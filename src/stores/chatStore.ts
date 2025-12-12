@@ -1,94 +1,23 @@
 import { create } from 'zustand';
 import type { Friend, Message, TrustLevel } from '../types';
-
-// Function to generate fresh mock data
-const createMockFriends = (): Friend[] => [
-  {
-    id: '1',
-    publicKey: 'mock-pubkey-alice-xxxxxxxxxxxxxxxxxxxxx',
-    name: 'Alice',
-    avatar: 'https://i.pravatar.cc/100?img=5',
-    lastMessage: '今天天氣真好',
-    lastMessageTime: Date.now() - 300000,
-    unreadCount: 2,
-    online: true,
-    trustLevel: 'verified',
-    addedAt: Date.now() - 86400000 * 7,
-  },
-  {
-    id: '2',
-    publicKey: 'mock-pubkey-bob-xxxxxxxxxxxxxxxxxxxxxxx',
-    name: 'Bob',
-    avatar: '👨',
-    lastMessage: '晚上要不要吃飯？',
-    lastMessageTime: Date.now() - 600000,
-    unreadCount: 0,
-    online: true,
-    trustLevel: 'verified',
-    addedAt: Date.now() - 86400000 * 5,
-  },
-  {
-    id: '3',
-    publicKey: 'mock-pubkey-carol-xxxxxxxxxxxxxxxxxxxxx',
-    name: 'Carol',
-    avatar: '👩‍💼',
-    lastMessage: '好的，收到了',
-    lastMessageTime: Date.now() - 3600000,
-    unreadCount: 0,
-    online: false,
-    trustLevel: 'unverified',
-    addedAt: Date.now() - 86400000 * 3,
-  },
-  {
-    id: '4',
-    publicKey: 'mock-pubkey-dave-xxxxxxxxxxxxxxxxxxxxxxx',
-    name: 'Dave',
-    avatar: '🧑‍💻',
-    lastMessage: '專案進度如何？',
-    lastMessageTime: Date.now() - 7200000,
-    unreadCount: 1,
-    online: false,
-    trustLevel: 'unverified',
-    addedAt: Date.now() - 86400000,
-  },
-];
-
-const createMockMessages = (): Record<string, Message[]> => ({
-  '1': [
-    { id: 'm1', senderId: '1', content: '嗨！最近好嗎？', timestamp: Date.now() - 400000, type: 'text', isRead: true, isBurned: false },
-    { id: 'm2', senderId: 'me', content: '不錯啊，你呢？', timestamp: Date.now() - 350000, type: 'text', isRead: true, isBurned: false },
-    { id: 'm3', senderId: '1', content: '今天天氣真好', timestamp: Date.now() - 300000, type: 'text', isRead: false, isBurned: false },
-    { id: 'm4', senderId: '1', content: '要不要出去走走？', timestamp: Date.now() - 280000, type: 'text', isRead: false, isBurned: false },
-  ],
-  '2': [
-    { id: 'm5', senderId: 'me', content: '今天有空嗎？', timestamp: Date.now() - 700000, type: 'text', isRead: true, isBurned: false },
-    { id: 'm6', senderId: '2', content: '有啊，怎麼了？', timestamp: Date.now() - 650000, type: 'text', isRead: true, isBurned: false },
-    { id: 'm7', senderId: '2', content: '晚上要不要吃飯？', timestamp: Date.now() - 600000, type: 'text', isRead: true, isBurned: false },
-  ],
-  '3': [
-    { id: 'm8', senderId: 'me', content: 'https://picsum.photos/400/300', timestamp: Date.now() - 3800000, type: 'image', isRead: true, isBurned: false },
-    { id: 'm9', senderId: 'me', content: '文件收到了嗎？', timestamp: Date.now() - 3700000, type: 'text', isRead: true, isBurned: false },
-    { id: 'm10', senderId: '3', content: '好的，收到了', timestamp: Date.now() - 3600000, type: 'text', isRead: true, isBurned: false },
-  ],
-  '4': [
-    { id: 'm11', senderId: '4', content: '專案進度如何？', timestamp: Date.now() - 7200000, type: 'text', isRead: false, isBurned: false, ttl: 10 },
-  ],
-});
+import * as storage from '../services/storage';
 
 interface ChatState {
   friends: Friend[];
   currentFriendId: string | null;
   messages: Record<string, Message[]>;
   isDisguiseMode: boolean;
+  isLoaded: boolean; // 是否已從本地載入
 
   // Actions
   selectFriend: (friendId: string) => void;
   clearSelection: () => void;
-  sendMessage: (content: string) => void;
+  sendMessage: (content: string, myPublicKey: string) => void;
   burnMessage: (messageId: string) => void;
   toggleDisguise: () => void;
   markAsRead: (friendId: string) => void;
   resetAll: () => void;
+  loadFromStorage: () => void;
 
   // 新增好友操作
   addFriend: (publicKey: string, name: string, trustLevel: TrustLevel, avatar?: string) => void;
@@ -101,10 +30,69 @@ interface ChatState {
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  friends: createMockFriends(),
+  friends: [],
   currentFriendId: null,
-  messages: createMockMessages(),
+  messages: {},
   isDisguiseMode: true,
+  isLoaded: false,
+
+  // 從本地儲存載入資料
+  loadFromStorage: () => {
+    if (!storage.isInitialized()) {
+      console.log('[chatStore] Storage not initialized yet');
+      return;
+    }
+
+    try {
+      // 載入聯絡人
+      const contacts = storage.getAllContacts();
+      const friends: Friend[] = contacts.map((c) => ({
+        id: `friend-${c.pubkey.slice(0, 16)}`,
+        publicKey: c.pubkey,
+        name: c.nickname,
+        avatar: c.avatar || `https://i.pravatar.cc/100?u=${c.pubkey.slice(0, 8)}`,
+        lastMessage: '',
+        lastMessageTime: c.addedAt,
+        unreadCount: 0,
+        online: false,
+        trustLevel: c.trustLevel,
+        addedAt: c.addedAt,
+      }));
+
+      // 載入每個好友的訊息
+      const messages: Record<string, Message[]> = {};
+      for (const friend of friends) {
+        const storedMessages = storage.getMessages(friend.publicKey, 100);
+        messages[friend.id] = storedMessages.map((m) => ({
+          id: m.id,
+          senderId: m.isOutgoing ? 'me' : friend.id,
+          content: m.content,
+          timestamp: m.createdAt,
+          type: m.type,
+          isRead: m.readAt !== null,
+          isBurned: false,
+          ttl: m.ttl || undefined,
+          encrypted: true,
+        }));
+
+        // 更新最後訊息
+        if (storedMessages.length > 0) {
+          const lastMsg = storedMessages[storedMessages.length - 1];
+          const friendIndex = friends.findIndex((f) => f.id === friend.id);
+          if (friendIndex >= 0) {
+            friends[friendIndex].lastMessage = lastMsg.content.slice(0, 50);
+            friends[friendIndex].lastMessageTime = lastMsg.createdAt;
+          }
+        }
+      }
+
+      set({ friends, messages, isLoaded: true });
+      console.log(`[chatStore] Loaded ${friends.length} friends from storage`);
+    } catch (err) {
+      console.error('[chatStore] Failed to load from storage:', err);
+      set({ isLoaded: true });
+    }
+  },
 
   selectFriend: (friendId) => {
     set({ currentFriendId: friendId });
@@ -113,12 +101,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearSelection: () => set({ currentFriendId: null }),
 
-  sendMessage: (content) => {
-    const { currentFriendId, messages } = get();
+  sendMessage: (content, myPublicKey) => {
+    const { currentFriendId, messages, friends } = get();
     if (!currentFriendId) return;
 
+    const friend = friends.find((f) => f.id === currentFriendId);
+    if (!friend) return;
+
     const newMessage: Message = {
-      id: `m${Date.now()}`,
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       senderId: 'me',
       content,
       timestamp: Date.now(),
@@ -136,12 +127,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     set({
-      friends: get().friends.map(f =>
+      friends: get().friends.map((f) =>
         f.id === currentFriendId
-          ? { ...f, lastMessage: content, lastMessageTime: Date.now() }
+          ? { ...f, lastMessage: content.slice(0, 50), lastMessageTime: Date.now() }
           : f
       ),
     });
+
+    // 保存到本地儲存
+    if (storage.isInitialized()) {
+      const conversationId = storage.getConversationIdForPeer(friend.publicKey);
+      storage.saveMessage({
+        id: newMessage.id,
+        conversationId,
+        senderPubkey: myPublicKey,
+        content,
+        type: 'text',
+        createdAt: newMessage.timestamp,
+        ttl: 0,
+        expiresAt: null,
+        readAt: Date.now(),
+        isOutgoing: true,
+        status: 'sent',
+      });
+    }
   },
 
   burnMessage: (messageId) => {
@@ -151,34 +160,56 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: {
         ...messages,
-        [currentFriendId]: messages[currentFriendId].map(m =>
+        [currentFriendId]: messages[currentFriendId].map((m) =>
           m.id === messageId ? { ...m, isBurned: true } : m
         ),
       },
     });
+
+    // 從本地儲存刪除
+    if (storage.isInitialized()) {
+      storage.deleteMessage(messageId);
+    }
   },
 
-  toggleDisguise: () => set(state => ({ isDisguiseMode: !state.isDisguiseMode })),
+  toggleDisguise: () => set((state) => ({ isDisguiseMode: !state.isDisguiseMode })),
 
   markAsRead: (friendId) => {
+    const { messages, friends } = get();
+    const friendMessages = messages[friendId] || [];
+
     set({
-      friends: get().friends.map(f =>
+      friends: friends.map((f) =>
         f.id === friendId ? { ...f, unreadCount: 0 } : f
       ),
       messages: {
-        ...get().messages,
-        [friendId]: (get().messages[friendId] || []).map(m => ({ ...m, isRead: true })),
+        ...messages,
+        [friendId]: friendMessages.map((m) => ({ ...m, isRead: true })),
       },
     });
+
+    // 標記本地儲存中的訊息為已讀
+    if (storage.isInitialized()) {
+      friendMessages.forEach((m) => {
+        if (!m.isRead) {
+          storage.markMessageAsRead(m.id);
+        }
+      });
+    }
   },
 
-  // Reset all data to initial state
   resetAll: () => {
     set({
-      friends: createMockFriends(),
-      messages: createMockMessages(),
+      friends: [],
+      messages: {},
       currentFriendId: null,
+      isLoaded: false,
     });
+
+    // 清除本地儲存
+    if (storage.isInitialized()) {
+      storage.clearAllData();
+    }
   },
 
   // 新增好友
@@ -191,13 +222,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    // 預設頭像：機器人用特殊頭像，其他用隨機頭像
-    const defaultAvatar = name?.includes('Bot')
-      ? 'https://i.pravatar.cc/100?img=47'
-      : `https://i.pravatar.cc/100?u=${publicKey.slice(0, 8)}`;
+    const defaultAvatar = `https://i.pravatar.cc/100?u=${publicKey.slice(0, 8)}`;
+    const friendId = `friend-${publicKey.slice(0, 16)}`;
 
     const newFriend: Friend = {
-      id: `friend-${Date.now()}`,
+      id: friendId,
       publicKey,
       name: name || `好友 ${publicKey.slice(0, 8)}...`,
       avatar: avatar || defaultAvatar,
@@ -211,31 +240,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set({ friends: [...friends, newFriend] });
     console.log('[chatStore] Friend added:', newFriend.name, trustLevel);
+
+    // 保存到本地儲存
+    if (storage.isInitialized()) {
+      storage.addContact({
+        pubkey: publicKey,
+        nickname: newFriend.name,
+        avatar: newFriend.avatar,
+        addedAt: newFriend.addedAt,
+        trustLevel,
+      });
+    }
   },
 
   // 更新好友信任等級
   updateFriendTrust: (friendId, trustLevel) => {
+    const friend = get().friends.find((f) => f.id === friendId);
     set({
       friends: get().friends.map((f) =>
-        f.id === friendId
-          ? { ...f, trustLevel, avatar: trustLevel === 'verified' ? '🟢' : '🟡' }
-          : f
+        f.id === friendId ? { ...f, trustLevel } : f
       ),
     });
+
+    // 更新本地儲存
+    if (storage.isInitialized() && friend) {
+      storage.addContact({
+        pubkey: friend.publicKey,
+        nickname: friend.name,
+        avatar: friend.avatar,
+        addedAt: friend.addedAt,
+        trustLevel,
+      });
+    }
   },
 
   // 移除好友
   removeFriend: (friendId) => {
-    const { messages } = get();
+    const { messages, friends } = get();
+    const friend = friends.find((f) => f.id === friendId);
     const newMessages = { ...messages };
     delete newMessages[friendId];
 
     set({
-      friends: get().friends.filter((f) => f.id !== friendId),
+      friends: friends.filter((f) => f.id !== friendId),
       messages: newMessages,
       currentFriendId:
         get().currentFriendId === friendId ? null : get().currentFriendId,
     });
+
+    // 從本地儲存刪除
+    if (storage.isInitialized() && friend) {
+      storage.removeContact(friend.publicKey);
+    }
   },
 
   // 根據公鑰查找好友
@@ -246,6 +302,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // 接收訊息
   receiveMessage: (friendId, message) => {
     const { messages, friends, currentFriendId } = get();
+    const friend = friends.find((f) => f.id === friendId);
     const currentMessages = messages[friendId] || [];
 
     // 更新訊息列表
@@ -262,7 +319,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         f.id === friendId
           ? {
               ...f,
-              lastMessage: message.content,
+              lastMessage: message.content.slice(0, 50),
               lastMessageTime: message.timestamp,
               unreadCount:
                 currentFriendId === friendId ? 0 : f.unreadCount + 1,
@@ -270,5 +327,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
           : f
       ),
     });
+
+    // 保存到本地儲存
+    if (storage.isInitialized() && friend) {
+      const conversationId = storage.getConversationIdForPeer(friend.publicKey);
+      const ttl = message.ttl || 0;
+      storage.saveMessage({
+        id: message.id,
+        conversationId,
+        senderPubkey: friend.publicKey,
+        content: message.content,
+        type: message.type,
+        createdAt: message.timestamp,
+        ttl,
+        expiresAt: ttl > 0 ? message.timestamp + ttl * 1000 : null,
+        readAt: currentFriendId === friendId ? Date.now() : null,
+        isOutgoing: false,
+        status: 'delivered',
+      });
+    }
   },
 }));

@@ -16,6 +16,7 @@ import { useCrypto } from '@hooks/useCrypto';
 import { useMqtt } from '@hooks/useMqtt';
 import { useWebRTC } from '@hooks/useWebRTC';
 import { MessageType, type MqttMessage } from '@services/mqtt';
+import { initStorage, isInitialized as isStorageInitialized, startCleanupTask } from '@services/storage';
 
 // 應用狀態
 interface AppState {
@@ -23,6 +24,9 @@ interface AppState {
   cryptoReady: boolean;
   hasIdentity: boolean;
   publicKey: string | null;
+
+  // Storage
+  storageReady: boolean;
 
   // MQTT
   mqttConnected: boolean;
@@ -80,6 +84,7 @@ interface AppProviderProps {
 
 export function AppProvider({ children }: AppProviderProps) {
   const [isInitializing, setIsInitializing] = useState(true);
+  const [storageReady, setStorageReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [peerMessageHandlers] = useState<Map<string, (data: ArrayBuffer | string) => void>>(new Map());
 
@@ -126,6 +131,15 @@ export function AppProvider({ children }: AppProviderProps) {
       try {
         setIsInitializing(true);
         setError(null);
+
+        // 初始化本地儲存
+        if (!isStorageInitialized()) {
+          console.log('[AppProvider] Initializing storage...');
+          await initStorage();
+          setStorageReady(true);
+          startCleanupTask(); // 啟動過期訊息清理任務
+          console.log('[AppProvider] Storage initialized');
+        }
 
         // 等待 Crypto 初始化
         if (!cryptoReady) {
@@ -236,6 +250,7 @@ export function AppProvider({ children }: AppProviderProps) {
     cryptoReady,
     hasIdentity,
     publicKey,
+    storageReady,
     mqttConnected: mqtt.isConnected,
     activePeers,
     isInitializing,
