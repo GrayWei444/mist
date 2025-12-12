@@ -4,7 +4,7 @@
  * 提供 WASM 加密模組的 React 整合
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   initCrypto,
   Identity,
@@ -49,9 +49,11 @@ interface CryptoState {
   identity: Identity | null;
   signedPreKey: SignedPreKey | null;
   oneTimePreKeys: OneTimePreKey[];
-  sessions: Map<string, Session>;
   version: string | null;
 }
+
+// Session 儲存 key
+const SESSIONS_STORAGE_KEY = 'mist_sessions';
 
 // IndexedDB 儲存鍵
 const STORAGE_KEY = 'mist_keys';
@@ -67,9 +69,12 @@ export function useCrypto() {
     identity: null,
     signedPreKey: null,
     oneTimePreKeys: [],
-    sessions: new Map(),
     version: null,
   });
+
+  // 使用 ref 存儲 sessions，避免 React state 更新延遲問題
+  // 這樣 session 的存取是同步的，不會有 race condition
+  const sessionsRef = useRef<Map<string, Session>>(new Map());
 
   /**
    * 初始化加密模組
@@ -96,6 +101,9 @@ export function useCrypto() {
         const oneTimePreKeys = storedKeys.oneTimePreKeys.map((k) =>
           OneTimePreKey.fromPrivateKey(fromBase64(k.privateKey), k.id)
         );
+
+        // 還原 sessions
+        restoreSessions(sessionsRef);
 
         setState((s) => ({
           ...s,
@@ -230,20 +238,21 @@ export function useCrypto() {
         recipientSignedPrekeyPublic
       );
 
-      // 儲存會話
+      // 儲存會話到 ref（同步，立即可用）
       const recipientKeyBase64 = toBase64(recipientIdentityPublic);
-      setState((s) => {
-        const newSessions = new Map(s.sessions);
-        newSessions.set(recipientKeyBase64, session);
-        return { ...s, sessions: newSessions };
-      });
+      sessionsRef.current.set(recipientKeyBase64, session);
+      console.log('[useCrypto] Session created (as Alice) for:', recipientKeyBase64.slice(0, 16) + '...');
+      console.log('[useCrypto] Total sessions:', sessionsRef.current.size);
+
+      // 持久化 session
+      saveSession(recipientKeyBase64, session);
 
       return {
         session,
         x3dhResult,
       };
     },
-    [state]
+    [state.identity, state.signedPreKey]
   );
 
   /**
@@ -295,17 +304,18 @@ export function useCrypto() {
         senderEphemeralPublic
       );
 
-      // 儲存會話
+      // 儲存會話到 ref（同步，立即可用）
       const senderKeyBase64 = toBase64(senderIdentityPublic);
-      setState((s) => {
-        const newSessions = new Map(s.sessions);
-        newSessions.set(senderKeyBase64, session);
-        return { ...s, sessions: newSessions };
-      });
+      sessionsRef.current.set(senderKeyBase64, session);
+      console.log('[useCrypto] Session created (as Bob) for:', senderKeyBase64.slice(0, 16) + '...');
+      console.log('[useCrypto] Total sessions:', sessionsRef.current.size);
+
+      // 持久化 session
+      saveSession(senderKeyBase64, session);
 
       return session;
     },
-    [state]
+    [state.identity, state.signedPreKey, state.oneTimePreKeys]
   );
 
   /**
@@ -313,13 +323,18 @@ export function useCrypto() {
    */
   const encrypt = useCallback(
     (recipientPublicKeyBase64: string, plaintext: string): RatchetMessage => {
-      const session = state.sessions.get(recipientPublicKeyBase64);
+      const session = sessionsRef.current.get(recipientPublicKeyBase64);
       if (!session) {
+        console.error('[useCrypto] No session for encrypt. Looking for:', recipientPublicKeyBase64.slice(0, 16) + '...');
+        console.error('[useCrypto] Available sessions:', Array.from(sessionsRef.current.keys()).map(k => k.slice(0, 16) + '...'));
         throw new Error('No session with this recipient');
       }
-      return session.encrypt(plaintext);
+      const encrypted = session.encrypt(plaintext);
+      // 加密後更新持久化（ratchet 狀態已改變）
+      saveSession(recipientPublicKeyBase64, session);
+      return encrypted;
     },
-    [state.sessions]
+    [] // 不依賴 state，使用 ref
   );
 
   /**
@@ -327,13 +342,18 @@ export function useCrypto() {
    */
   const decrypt = useCallback(
     (senderPublicKeyBase64: string, message: RatchetMessage): string => {
-      const session = state.sessions.get(senderPublicKeyBase64);
+      const session = sessionsRef.current.get(senderPublicKeyBase64);
       if (!session) {
+        console.error('[useCrypto] No session for decrypt. Looking for:', senderPublicKeyBase64.slice(0, 16) + '...');
+        console.error('[useCrypto] Available sessions:', Array.from(sessionsRef.current.keys()).map(k => k.slice(0, 16) + '...'));
         throw new Error('No session with this sender');
       }
-      return session.decryptToString(message);
+      const decrypted = session.decryptToString(message);
+      // 解密後更新持久化（ratchet 狀態已改變）
+      saveSession(senderPublicKeyBase64, session);
+      return decrypted;
     },
-    [state.sessions]
+    [] // 不依賴 state，使用 ref
   );
 
   /**
@@ -344,19 +364,22 @@ export function useCrypto() {
     state.identity?.free();
     state.signedPreKey?.free();
     state.oneTimePreKeys.forEach((k) => k.free());
-    state.sessions.forEach((s) => s.free());
+    sessionsRef.current.forEach((s) => s.free());
 
     // 清除儲存
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SESSIONS_STORAGE_KEY);
+
+    // 清空 sessions ref
+    sessionsRef.current = new Map();
 
     setState((s) => ({
       ...s,
       identity: null,
       signedPreKey: null,
       oneTimePreKeys: [],
-      sessions: new Map(),
     }));
-  }, [state]);
+  }, [state.identity, state.signedPreKey, state.oneTimePreKeys]);
 
   // 自動初始化
   useEffect(() => {
@@ -367,7 +390,7 @@ export function useCrypto() {
       state.identity?.free();
       state.signedPreKey?.free();
       state.oneTimePreKeys.forEach((k) => k.free());
-      state.sessions.forEach((s) => s.free());
+      sessionsRef.current.forEach((s) => s.free());
     };
   }, []);
 
@@ -417,6 +440,69 @@ function loadKeys(): StoredKeys | null {
   } catch (error) {
     console.error('Failed to load keys:', error);
     return null;
+  }
+}
+
+// ============================================
+// Session 儲存輔助函式
+// ============================================
+
+interface StoredSessions {
+  [publicKeyBase64: string]: string; // Base64 encoded serialized session
+}
+
+function saveSession(publicKeyBase64: string, session: Session): void {
+  try {
+    const serialized = session.serialize();
+    const base64 = toBase64(serialized);
+
+    const stored = loadAllSessions();
+    stored[publicKeyBase64] = base64;
+    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(stored));
+    console.log('[useCrypto] Session saved for:', publicKeyBase64.slice(0, 16) + '...');
+  } catch (error) {
+    console.error('[useCrypto] Failed to save session:', error);
+  }
+}
+
+function loadAllSessions(): StoredSessions {
+  try {
+    const data = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    return data ? JSON.parse(data) : {};
+  } catch (error) {
+    console.error('[useCrypto] Failed to load sessions:', error);
+    return {};
+  }
+}
+
+function restoreSessions(sessionsRef: React.MutableRefObject<Map<string, Session>>): void {
+  try {
+    const stored = loadAllSessions();
+    const entries = Object.entries(stored);
+
+    if (entries.length === 0) {
+      console.log('[useCrypto] No stored sessions to restore');
+      return;
+    }
+
+    for (const [publicKeyBase64, base64Data] of entries) {
+      try {
+        const bytes = fromBase64(base64Data);
+        const session = Session.deserialize(bytes);
+        sessionsRef.current.set(publicKeyBase64, session);
+        console.log('[useCrypto] Session restored for:', publicKeyBase64.slice(0, 16) + '...');
+      } catch (err) {
+        console.error('[useCrypto] Failed to restore session for:', publicKeyBase64.slice(0, 16), err);
+        // 移除損壞的 session
+        const stored = loadAllSessions();
+        delete stored[publicKeyBase64];
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(stored));
+      }
+    }
+
+    console.log('[useCrypto] Restored', sessionsRef.current.size, 'sessions');
+  } catch (error) {
+    console.error('[useCrypto] Failed to restore sessions:', error);
   }
 }
 
