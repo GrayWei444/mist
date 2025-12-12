@@ -222,10 +222,12 @@ export function QRCodeExchange() {
       addLog(`   ✅ 產生共享密鑰`);
       addLog(`   臨時公鑰: ${toBase64(x3dhResult.ephemeralPublicKey).slice(0, 24)}...`);
 
-      // Bob 建立 Double Ratchet 會話（作為 Alice）
+      // Bob 建立 Double Ratchet 會話（作為 Alice，使用 X3DH 臨時金鑰對）
       const bobSession = Session.initAsAlice(
         x3dhResult.sharedSecret,
-        aliceSignedPreKey.publicKey
+        aliceSignedPreKey.publicKey,
+        x3dhResult.ephemeralPrivateKey,
+        x3dhResult.ephemeralPublicKey
       );
       wasmRef.current.sessionB = bobSession;
       addLog('   ✅ Bob 建立 Double Ratchet 會話');

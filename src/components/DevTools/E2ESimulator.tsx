@@ -153,10 +153,12 @@ export function E2ESimulator() {
 
       addLog(`   共享密鑰已計算 (HKDF)`);
 
-      // Device A 建立 Double Ratchet 會話
+      // Device A 建立 Double Ratchet 會話 (使用 X3DH 的臨時金鑰對)
       const sessionA = Session.initAsAlice(
         x3dhResultA.sharedSecret,
-        deviceB.signedPreKey.publicKey
+        deviceB.signedPreKey.publicKey,
+        x3dhResultA.ephemeralPrivateKey,
+        x3dhResultA.ephemeralPublicKey
       );
       deviceA.session = sessionA;
 

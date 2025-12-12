@@ -275,10 +275,12 @@ export function LiveTestPanel({ onEnterChat }: LiveTestPanelProps) {
 
       addLog('✅ X3DH 產生共享密鑰');
 
-      // 建立 Double Ratchet 會話 (作為 Alice)
+      // 建立 Double Ratchet 會話 (作為 Alice，使用 X3DH 臨時金鑰對)
       const session = Session.initAsAlice(
         x3dhResult.sharedSecret,
-        peerSignedPreKeyPub
+        peerSignedPreKeyPub,
+        x3dhResult.ephemeralPrivateKey,
+        x3dhResult.ephemeralPublicKey
       );
       wasmRef.current.session = session;
       addLog('✅ Double Ratchet 會話已建立');
