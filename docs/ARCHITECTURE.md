@@ -256,6 +256,60 @@ flowchart LR
 
 每則訊息使用不同金鑰，即使單一金鑰洩漏，也無法解密其他訊息。
 
+### 3.3 加密實作細節 (Rust WASM)
+
+**Session 初始化流程：**
+
+```
+Alice (發起者)                          Bob (接收者)
+─────────────────────────────────────────────────────────
+1. 掃描 Bob 的 QR Code
+   (取得 IK_B, SPK_B, sig)
+
+2. X3DH.initiatorCalculate()
+   → shared_secret
+   → ephemeral_pub/priv
+
+3. Session.initAsAlice(
+     shared_secret,
+     SPK_B,
+     eph_priv,
+     eph_pub
+   )
+   → chain_key_send
+
+4. 發送 X3DH_INIT 訊息 ─────────────────→ 5. 收到 X3DH_INIT
+   {IK_A, eph_pub}                          X3DH.responderCalculate()
+                                            → shared_secret (相同)
+
+                                         6. Session.initAsBob(
+                                              shared_secret,
+                                              SPK_B_priv,
+                                              SPK_B_pub,
+                                              eph_pub
+                                            )
+                                            → chain_key_recv
+
+7. encrypt("Hello") ────────────────────→ 8. decrypt(ciphertext)
+   使用 chain_key_send                       使用 chain_key_recv
+```
+
+**金鑰派生 (KDF)：**
+
+```rust
+// HKDF-SHA256 用於所有金鑰派生
+fn kdf_rk(root_key: &[u8], dh_output: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    // 使用 root_key 作為 salt，dh_output 作為 input
+    // 輸出 64 bytes：前 32 bytes = 新 root_key，後 32 bytes = chain_key
+}
+```
+
+**加密演算法：**
+- 訊息加密：AES-256-GCM (12 bytes nonce, 16 bytes tag)
+- 金鑰交換：X25519 (Curve25519 ECDH)
+- 身份簽章：Ed25519
+- 金鑰派生：HKDF-SHA256
+
 ## 4. 訊息生命週期控制
 
 ### 4.1 TTL 機制
@@ -619,11 +673,14 @@ const TURN_SERVER = {
 ### Phase 2: 安全與信任 🔄 進行中
 
 - [x] QR Code 掃描與公鑰交換 (X3DH 格式統一)
+- [x] X3DH 金鑰交換實作 (Rust WASM)
+- [x] Double Ratchet 加密協定實作 (Rust WASM)
+- [x] 端對端加密訊息傳輸
+- [x] sql.js 加密儲存 (IndexedDB 持久化)
+- [x] Session 版本遷移機制
 - [ ] 一次性邀請連結功能
 - [ ] 分層信任機制（已驗證/未驗證）
 - [ ] 驗證升級流程
-- [ ] X3DH + Double Ratchet 實作
-- [ ] sql.js 加密儲存
 - [ ] WebAuthn 生物辨識
 
 ### Phase 3: 高級功能
