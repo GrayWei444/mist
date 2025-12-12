@@ -240,6 +240,8 @@ export function AppProvider({ children }: AppProviderProps) {
         const payload = message.payload;
 
         console.log('[AppProvider] Received ENCRYPTED_MESSAGE from:', senderPublicKeyBase64.slice(0, 16) + '...');
+        console.log('[AppProvider] Payload type:', typeof payload);
+        console.log('[AppProvider] Payload preview:', typeof payload === 'string' ? payload.slice(0, 100) + '...' : JSON.stringify(payload).slice(0, 100));
 
         // 檢查發送者是否為好友
         const friend = getFriendByPublicKey(senderPublicKeyBase64);
@@ -249,10 +251,14 @@ export function AppProvider({ children }: AppProviderProps) {
         }
 
         // payload 是 JSON 字串 (來自 RatchetMessage.toJson())，需要先反序列化為 WASM 物件
+        console.log('[AppProvider] Converting payload to RatchetMessage...');
         const ratchetMessage = RatchetMessage.fromJson(payload as string);
+        console.log('[AppProvider] RatchetMessage created successfully');
 
         // 解密訊息
+        console.log('[AppProvider] Attempting to decrypt...');
         const decrypted = decrypt(senderPublicKeyBase64, ratchetMessage);
+        console.log('[AppProvider] Decryption successful!');
         const messageData = JSON.parse(decrypted) as {
           content: string;
           type: 'text' | 'image' | 'file';

@@ -342,16 +342,29 @@ export function useCrypto() {
    */
   const decrypt = useCallback(
     (senderPublicKeyBase64: string, message: RatchetMessage): string => {
+      console.log('[useCrypto] decrypt() called for:', senderPublicKeyBase64.slice(0, 16) + '...');
+      console.log('[useCrypto] Current sessions count:', sessionsRef.current.size);
+      console.log('[useCrypto] Session keys:', Array.from(sessionsRef.current.keys()).map(k => k.slice(0, 16) + '...'));
+
       const session = sessionsRef.current.get(senderPublicKeyBase64);
       if (!session) {
         console.error('[useCrypto] No session for decrypt. Looking for:', senderPublicKeyBase64.slice(0, 16) + '...');
         console.error('[useCrypto] Available sessions:', Array.from(sessionsRef.current.keys()).map(k => k.slice(0, 16) + '...'));
         throw new Error('No session with this sender');
       }
-      const decrypted = session.decryptToString(message);
-      // 解密後更新持久化（ratchet 狀態已改變）
-      saveSession(senderPublicKeyBase64, session);
-      return decrypted;
+
+      console.log('[useCrypto] Session found, attempting decrypt...');
+      try {
+        const decrypted = session.decryptToString(message);
+        console.log('[useCrypto] Decrypt successful!');
+        // 解密後更新持久化（ratchet 狀態已改變）
+        saveSession(senderPublicKeyBase64, session);
+        return decrypted;
+      } catch (err) {
+        console.error('[useCrypto] Decrypt FAILED:', err);
+        console.error('[useCrypto] Session myPublicKey:', session.myPublicKeyBase64?.slice(0, 16) + '...');
+        throw err;
+      }
     },
     [] // 不依賴 state，使用 ref
   );

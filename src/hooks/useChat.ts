@@ -64,10 +64,13 @@ export function useChat(options: UseChatOptions = {}) {
         };
 
         // 加密訊息 (返回 RatchetMessage WASM 物件)
+        console.log('[useChat] Encrypting message for:', currentFriend.publicKey.slice(0, 16) + '...');
         const encrypted = encryptMessage(currentFriend.publicKey, JSON.stringify(messageData)) as RatchetMessage;
+        console.log('[useChat] Encryption successful');
 
         // 序列化 RatchetMessage 為 JSON 字串以便透過網路傳輸
         const serializedMessage = encrypted.toJson();
+        console.log('[useChat] Serialized message preview:', serializedMessage.slice(0, 100) + '...');
 
         // 檢查是否有 P2P 連線
         const hasPeerConnection = isConnectedTo(currentFriend.publicKey);
